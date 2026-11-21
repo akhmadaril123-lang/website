@@ -6,17 +6,33 @@ const path = require('node:path');
 const { promisify } = require('node:util');
 const express = require('express');
 const { rateLimit } = require('express-rate-limit');
-const { DatabaseSync } = require('node:sqlite');
-const { createGoogleSheetsStore } = require('./google-sheets-store');
+const { createGoogleAppsScriptStore } = require('./google-sheets-store');
 
 const scrypt = promisify(crypto.scrypt);
 const SESSION_COOKIE = 'speakup_session';
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
+const RESET_TTL_MS = 30 * 60 * 1000;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const RESET_TOKEN_PATTERN = /^[a-f0-9]{64}$/;
 const EDUCATION_LEVELS = new Set(['SMA', 'SMK', 'SMP', 'Umum']);
 const LEARNING_LEVELS = new Set(['Pemula', 'Menengah', 'Lanjut']);
+const DEFAULT_STATS = Object.freeze({ streak: 3, newWords: 4, weeklyProgress: 65 });
+const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
+// OAuth Client ID memang publik; keamanan berasal dari verifikasi token server-side.
+const DEFAULT_GOOGLE_CLIENT_ID = '778021422214-3rchusoh5qaht0ufpn0qrqs81nk75h0t.apps.googleusercontent.com';
+const TRANSLATE_MAX_LENGTH = 300;
 
 function openDatabase(databasePath) {
+  let DatabaseSync;
+  try {
+    ({ DatabaseSync } = require('node:sqlite'));
+  } catch {
+    throw new Error(
+      'Modul node:sqlite tidak tersedia. Jalankan Node.js 22.13 atau lebih baru, ' +
+      'atau atur GOOGLE_APPS_SCRIPT_URL untuk memakai penyimpanan Google Sheets.'
+    );
+  }
+
   if (databasePath !== ':memory:') {
     fs.mkdirSync(path.dirname(databasePath), { recursive: true });
   }
@@ -48,7 +64,43 @@ function openDatabase(databasePath) {
     );
     CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions(expires_at);
   `);
+
+  // Migrasi ringan untuk database yang sudah dibuat sebelum kolom berikut ada.
+  ensureColumn(db, 'users', 'streak', 'INTEGER NOT NULL DEFAULT 3');
+  ensureColumn(db, 'users', 'new_words', 'INTEGER NOT NULL DEFAULT 4');
+  ensureColumn(db, 'users', 'weekly_progress', 'INTEGER NOT NULL DEFAULT 65');
+  ensureColumn(db, 'users', 'google_linked', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'users', 'google_email', 'TEXT');
+  ensureColumn(db, 'users', 'google_sub', 'TEXT');
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS password_resets (
+      token_hash TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at INTEGER NOT NULL,
+      used_at INTEGER,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS password_resets_expires_at_idx ON password_resets(expires_at);
+  `);
+
   return db;
+}
+
+function ensureColumn(db, table, column, definition) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!columns.some(item => item.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
+function toInt(value, fallback, min, max) {
+  const number = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  const integer = Math.trunc(number);
+  if (integer < min) return min;
+  if (integer > max) return max;
+  return integer;
 }
 
 function normalizeIdentifier(value) {
@@ -76,16 +128,20 @@ function normalizeIdentifier(value) {
 }
 
 function toPublicUser(row) {
+  const googleLinked = Boolean(Number(row.google_linked));
   return {
     id: String(row.id),
     name: row.name,
-    email: row.email,
-    phone: row.phone,
+    email: row.email || null,
+    phone: row.phone || null,
     education: row.education,
     level: row.level,
-    streak: 3,
-    newWords: 4,
-    weeklyProgress: 65,
+    streak: toInt(row.streak, DEFAULT_STATS.streak, 0, 100000),
+    newWords: toInt(row.new_words, DEFAULT_STATS.newWords, 0, 1000000),
+    weeklyProgress: toInt(row.weekly_progress, DEFAULT_STATS.weeklyProgress, 0, 100),
+    provider: googleLinked ? 'google' : 'email',
+    googleLinked,
+    googleEmail: row.google_email || null,
     reminderTime: row.reminder_time,
     micPermission: Boolean(row.mic_permission),
     privacyAgreed: Boolean(row.privacy_agreed),
@@ -93,6 +149,13 @@ function toPublicUser(row) {
     onboardingComplete: Boolean(row.onboarding_complete),
     phoneVerified: false
   };
+}
+
+function isUniqueConstraintError(error) {
+  if (!error) return false;
+  if (error.code === 'ERR_SQLITE_CONSTRAINT_UNIQUE') return true;
+  if (error.errcode === 2067) return true;
+  return /UNIQUE constraint failed/i.test(String(error.message || ''));
 }
 
 function createSqliteStore(databasePath) {
@@ -107,11 +170,32 @@ function createSqliteStore(databasePath) {
     async findUserById(id) {
       return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
     },
+    async findUserByGoogleSub(googleSub) {
+      if (!googleSub) return undefined;
+      return db.prepare('SELECT * FROM users WHERE google_sub = ?').get(String(googleSub));
+    },
     async createUser(user) {
       const result = db.prepare(`
-        INSERT INTO users (name, email, phone, password_hash, education, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(user.name, user.email, user.phone, user.password_hash, user.education, user.created_at);
+        INSERT INTO users (
+          name, email, phone, password_hash, education,
+          streak, new_words, weekly_progress,
+          google_linked, google_email, google_sub, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        user.name,
+        user.email,
+        user.phone,
+        user.password_hash,
+        user.education,
+        toInt(user.streak, DEFAULT_STATS.streak, 0, 100000),
+        toInt(user.new_words, DEFAULT_STATS.newWords, 0, 1000000),
+        toInt(user.weekly_progress, DEFAULT_STATS.weeklyProgress, 0, 100),
+        user.google_linked ? 1 : 0,
+        user.google_email || null,
+        user.google_sub || null,
+        user.created_at
+      );
       return db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
     },
     async updateUser(id, updates) {
@@ -139,6 +223,29 @@ function createSqliteStore(databasePath) {
     async deleteSession(sessionHash) {
       db.prepare('DELETE FROM sessions WHERE session_hash = ?').run(sessionHash);
     },
+    async deleteUserSessions(userId) {
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+    },
+    async createPasswordReset(reset, now) {
+      db.prepare('DELETE FROM password_resets WHERE expires_at <= ? OR used_at IS NOT NULL').run(now);
+      db.prepare(`
+        INSERT INTO password_resets (token_hash, user_id, expires_at, used_at, created_at)
+        VALUES (?, ?, ?, NULL, ?)
+      `).run(reset.token_hash, reset.user_id, reset.expires_at, reset.created_at);
+    },
+    async findPasswordReset(tokenHash, now) {
+      return db.prepare(`
+        SELECT * FROM password_resets
+        WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?
+      `).get(tokenHash, now);
+    },
+    async consumePasswordReset(tokenHash, now) {
+      const result = db.prepare(`
+        UPDATE password_resets SET used_at = ?
+        WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?
+      `).run(now, tokenHash, now);
+      return Number(result.changes) > 0;
+    },
     close() {
       db.close();
     }
@@ -152,6 +259,13 @@ async function hashPassword(password) {
 }
 
 async function verifyPassword(password, storedHash) {
+  if (typeof storedHash !== 'string') return false;
+  if (storedHash.startsWith('sha256$')) {
+    const expectedHex = storedHash.slice(7);
+    const actualHex = crypto.createHash('sha256').update(password).digest('hex');
+    if (expectedHex.length !== actualHex.length) return false;
+    return crypto.timingSafeEqual(Buffer.from(expectedHex, 'utf8'), Buffer.from(actualHex, 'utf8'));
+  }
   const [algorithm, saltHex, keyHex] = storedHash.split('$');
   if (algorithm !== 'scrypt' || !/^[a-f0-9]{32}$/.test(saltHex) || !/^[a-f0-9]{128}$/.test(keyHex)) {
     return false;
@@ -164,6 +278,120 @@ async function verifyPassword(password, storedHash) {
     maxmem: 64 * 1024 * 1024
   });
   return crypto.timingSafeEqual(expectedKey, actualKey);
+}
+
+function hashResetToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+async function verifyGoogleIdToken(credential, clientId) {
+  if (!clientId) throw new Error('GOOGLE_CLIENT_ID belum dikonfigurasi.');
+  const response = await fetch(
+    `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`,
+    { signal: AbortSignal.timeout(8000) }
+  );
+  if (!response.ok) throw new Error('Token Google tidak valid.');
+
+  const payload = await response.json();
+  const audience = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+  if (!audience.includes(clientId)) throw new Error('Audience token Google tidak cocok.');
+  if (payload.iss !== 'https://accounts.google.com' && payload.iss !== 'accounts.google.com') {
+    throw new Error('Issuer token Google tidak valid.');
+  }
+  const emailVerified = payload.email_verified === true || payload.email_verified === 'true';
+  if (!emailVerified) throw new Error('Email Google belum terverifikasi.');
+  if (!payload.sub || !payload.email) throw new Error('Identitas Google tidak lengkap.');
+  if (!Number.isFinite(Number(payload.exp)) || Number(payload.exp) * 1000 <= Date.now()) {
+    throw new Error('Token Google sudah kedaluwarsa.');
+  }
+
+  return {
+    sub: String(payload.sub),
+    email: String(payload.email).toLowerCase(),
+    name: String(payload.name || payload.email),
+    emailVerified: true
+  };
+}
+
+async function translateWithGemini(phrase, { apiKey, model = DEFAULT_GEMINI_MODEL }) {
+  const prompt = [
+    'Analisis kalimat bahasa Inggris berikut untuk pelajar SMA/SMK di Indonesia:',
+    JSON.stringify(phrase),
+    '',
+    'Kembalikan JSON dengan kunci:',
+    '- meaning: terjemahan bahasa Indonesia yang alami',
+    '- phonetic: cara baca fonetik sederhana dengan ejaan Indonesia (contoh: "ai stadi at skul")',
+    '- explanation: penjelasan tata bahasa singkat, maksimal 2 kalimat bahasa Indonesia'
+  ].join('\n');
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(15000),
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.3,
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'OBJECT',
+            properties: {
+              meaning: { type: 'STRING' },
+              phonetic: { type: 'STRING' },
+              explanation: { type: 'STRING' }
+            },
+            required: ['meaning', 'phonetic', 'explanation']
+          }
+        }
+      })
+    }
+  );
+
+  if (!response.ok) throw new Error(`Gemini mengembalikan HTTP ${response.status}.`);
+  const data = await response.json();
+  const rawText = data && data.candidates && data.candidates[0] &&
+    data.candidates[0].content && data.candidates[0].content.parts &&
+    data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+  if (!rawText) throw new Error('Respons Gemini kosong.');
+
+  const parsed = JSON.parse(rawText);
+  if (!parsed || typeof parsed.meaning !== 'string' || !parsed.meaning.trim()) {
+    throw new Error('Hasil terjemahan tidak lengkap.');
+  }
+  return {
+    meaning: parsed.meaning.trim(),
+    phonetic: typeof parsed.phonetic === 'string' ? parsed.phonetic.trim() : '',
+    explanation: typeof parsed.explanation === 'string' ? parsed.explanation.trim() : ''
+  };
+}
+
+async function sendResetEmail({ to, resetUrl }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM;
+  if (!apiKey || !from) return false;
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`
+    },
+    signal: AbortSignal.timeout(10000),
+    body: JSON.stringify({
+      from,
+      to: [to],
+      subject: 'Atur ulang kata sandi SpeakUp',
+      html: `
+        <p>Halo,</p>
+        <p>Kami menerima permintaan untuk mengatur ulang kata sandi akun SpeakUp Anda.</p>
+        <p><a href="${resetUrl}">Atur ulang kata sandi</a></p>
+        <p>Tautan ini berlaku selama 30 menit. Jika Anda tidak meminta perubahan ini, abaikan email ini.</p>
+      `
+    })
+  });
+  return response.ok;
 }
 
 function readCookie(req, cookieName) {
@@ -200,27 +428,36 @@ function clearSessionCookie(res, isProduction) {
 
 function createApp(options = {}) {
   const isProduction = (options.nodeEnv || process.env.NODE_ENV) === 'production';
-  const hasGoogleSheetsConfig = Boolean(
-    process.env.GOOGLE_SHEETS_SPREADSHEET_ID ||
-    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ||
-    process.env.GOOGLE_PRIVATE_KEY
-  );
-  if (!options.store && process.env.VERCEL && !hasGoogleSheetsConfig) {
-    throw new Error('Konfigurasi Google Sheets belum diatur pada Environment Variables Vercel.');
+  const isTest = (options.nodeEnv || process.env.NODE_ENV) === 'test';
+  const appsScriptUrl = options.appsScriptUrl || (!options.databasePath && process.env.GOOGLE_APPS_SCRIPT_URL);
+  const hasAppsScriptConfig = Boolean(appsScriptUrl);
+  if (!options.store && process.env.VERCEL && !hasAppsScriptConfig) {
+    throw new Error('Konfigurasi GOOGLE_APPS_SCRIPT_URL belum diatur pada Environment Variables Vercel.');
   }
-  const store = options.store || (hasGoogleSheetsConfig
-    ? createGoogleSheetsStore({
-      spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
-      serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      privateKey: process.env.GOOGLE_PRIVATE_KEY
-    })
+  const store = options.store || (hasAppsScriptConfig
+    ? createGoogleAppsScriptStore({ scriptUrl: appsScriptUrl })
     : (() => {
-      const configuredDatabasePath = options.databasePath || process.env.DATABASE_PATH || './data/speakup.sqlite';
+      const configuredDatabasePath = options.databasePath || './data/speakup.sqlite';
       const databasePath = configuredDatabasePath === ':memory:'
         ? configuredDatabasePath
         : path.resolve(__dirname, configuredDatabasePath);
       return createSqliteStore(databasePath);
     })());
+
+  const googleClientId = options.googleClientId !== undefined
+    ? options.googleClientId
+    : (process.env.GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID);
+  const verifyGoogleToken = options.verifyGoogleToken || null;
+  const geminiApiKey = options.geminiApiKey !== undefined
+    ? options.geminiApiKey
+    : (process.env.GEMINI_API_KEY || null);
+  const geminiModel = options.geminiModel || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+  const translatePhrase = options.translatePhrase || null;
+  const appOrigin = (options.appOrigin || process.env.APP_ORIGIN || '').replace(/\/$/, '');
+  const exposeResetLink = options.exposeResetLink !== undefined
+    ? Boolean(options.exposeResetLink)
+    : !isProduction;
+
   const app = express();
   if (process.env.VERCEL) app.set('trust proxy', 1);
   app.disable('x-powered-by');
@@ -229,6 +466,8 @@ function createApp(options = {}) {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'microphone=(self), camera=(), geolocation=()');
+    if (req.path.startsWith('/api')) res.setHeader('Cache-Control', 'no-store');
     next();
   });
 
@@ -236,18 +475,21 @@ function createApp(options = {}) {
     if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) || !req.headers.origin) {
       return next();
     }
-    const expectedOrigin = process.env.APP_ORIGIN || `${req.protocol}://${req.get('host')}`;
-    if (req.headers.origin !== expectedOrigin) {
+    const allowedOrigins = new Set([`${req.protocol}://${req.get('host')}`]);
+    if (appOrigin) allowedOrigins.add(appOrigin);
+    if (!allowedOrigins.has(req.headers.origin)) {
       return res.status(403).json({ error: 'Permintaan lintas situs tidak diizinkan.' });
     }
     next();
   });
 
+  const skipRateLimit = () => isTest;
   const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 10,
     standardHeaders: 'draft-8',
     legacyHeaders: false,
+    skip: skipRateLimit,
     message: { error: 'Terlalu banyak percobaan masuk. Coba lagi beberapa saat.' }
   });
   const registerLimiter = rateLimit({
@@ -255,7 +497,16 @@ function createApp(options = {}) {
     limit: 5,
     standardHeaders: 'draft-8',
     legacyHeaders: false,
+    skip: skipRateLimit,
     message: { error: 'Terlalu banyak pendaftaran. Coba lagi nanti.' }
+  });
+  const translateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 40,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    skip: skipRateLimit,
+    message: { error: 'Terlalu banyak permintaan terjemahan. Coba lagi beberapa saat.' }
   });
 
   async function requireSession(req, res, next) {
@@ -297,6 +548,15 @@ function createApp(options = {}) {
     res.json({ status: 'ok' });
   });
 
+  app.get('/api/config', (req, res) => {
+    res.json({
+      googleClientId: googleClientId || null,
+      googleEnabled: Boolean(googleClientId),
+      translateEnabled: Boolean(translatePhrase || geminiApiKey),
+      appsScriptUrl: hasAppsScriptConfig ? appsScriptUrl : null
+    });
+  });
+
   app.post('/api/auth/register', registerLimiter, async (req, res) => {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const name = typeof body.name === 'string' ? body.name.trim() : '';
@@ -332,7 +592,7 @@ function createApp(options = {}) {
         created_at: Date.now()
       });
     } catch (error) {
-      if (error.code === 'ERR_SQLITE_CONSTRAINT_UNIQUE') {
+      if (isUniqueConstraintError(error)) {
         return res.status(409).json({ error: 'Email atau nomor HP sudah terdaftar.' });
       }
       throw error;
@@ -372,6 +632,11 @@ function createApp(options = {}) {
       parentalAgreed: 'parental_agreed',
       onboardingComplete: 'onboarding_complete'
     };
+    const integerFields = {
+      streak: { column: 'streak', min: 0, max: 100000 },
+      newWords: { column: 'new_words', min: 0, max: 1000000 },
+      weeklyProgress: { column: 'weekly_progress', min: 0, max: 100 }
+    };
 
     if (Object.prototype.hasOwnProperty.call(body, 'education')) {
       if (!EDUCATION_LEVELS.has(body.education)) {
@@ -399,6 +664,15 @@ function createApp(options = {}) {
         updates[column] = Number(body[field]);
       }
     }
+    for (const [field, rule] of Object.entries(integerFields)) {
+      if (Object.prototype.hasOwnProperty.call(body, field)) {
+        const value = body[field];
+        if (!Number.isInteger(value) || value < rule.min || value > rule.max) {
+          return res.status(400).json({ error: 'Data progres belajar tidak valid.' });
+        }
+        updates[rule.column] = value;
+      }
+    }
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: 'Tidak ada perubahan profil yang dikirim.' });
@@ -415,6 +689,190 @@ function createApp(options = {}) {
     }
     clearSessionCookie(res, isProduction);
     res.json({ success: true });
+  });
+
+  app.post('/api/auth/forgot-password', loginLimiter, async (req, res) => {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const identity = normalizeIdentifier(body.identifier);
+    if (!identity) {
+      return res.status(400).json({ error: 'Masukkan email atau nomor HP yang valid.' });
+    }
+
+    const user = await store.findUserByIdentifier(identity);
+    let resetUrl = null;
+
+    if (user && user.email) {
+      const token = crypto.randomBytes(32).toString('hex');
+      const tokenHash = hashResetToken(token);
+      const now = Date.now();
+      await store.createPasswordReset({
+        token_hash: tokenHash,
+        user_id: user.id,
+        expires_at: now + RESET_TTL_MS,
+        created_at: now
+      }, now);
+
+      const origin = appOrigin || `${req.protocol}://${req.get('host')}`;
+      resetUrl = `${origin}/?reset=${token}`;
+      try {
+        await sendResetEmail({ to: user.email, resetUrl });
+      } catch (error) {
+        console.error('Email atur ulang gagal dikirim:', error.message);
+      }
+    }
+
+    const payload = {
+      success: true,
+      message: 'Jika kontak terdaftar, tautan atur ulang kata sandi telah dikirim.'
+    };
+    if (resetUrl && exposeResetLink) payload.resetUrl = resetUrl;
+    res.json(payload);
+  });
+
+  app.post('/api/auth/reset-password', loginLimiter, async (req, res) => {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const token = typeof body.token === 'string' ? body.token.trim() : '';
+    const password = body.password;
+
+    if (!RESET_TOKEN_PATTERN.test(token)) {
+      return res.status(400).json({ error: 'Tautan atur ulang tidak valid atau sudah kedaluwarsa.' });
+    }
+    if (typeof password !== 'string' || Buffer.byteLength(password, 'utf8') > 256 || password.length < 8) {
+      return res.status(400).json({ error: 'Kata sandi harus terdiri dari minimal 8 karakter.' });
+    }
+
+    const now = Date.now();
+    const tokenHash = hashResetToken(token);
+    const reset = await store.findPasswordReset(tokenHash, now);
+    if (!reset) {
+      return res.status(400).json({ error: 'Tautan atur ulang tidak valid atau sudah kedaluwarsa.' });
+    }
+
+    const passwordHash = await hashPassword(password);
+    const user = await store.updateUser(reset.user_id, { password_hash: passwordHash });
+    if (!user) {
+      return res.status(400).json({ error: 'Akun untuk tautan ini tidak ditemukan.' });
+    }
+
+    await store.consumePasswordReset(tokenHash, now);
+    await store.deleteUserSessions(reset.user_id);
+    res.json({ success: true, message: 'Kata sandi berhasil diperbarui. Silakan masuk dengan kata sandi baru.' });
+  });
+
+  app.post('/api/auth/google', loginLimiter, async (req, res) => {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const credential = typeof body.credential === 'string' ? body.credential : '';
+
+    let verified = null;
+    if (credential) {
+      if (!verifyGoogleToken && !googleClientId) {
+        return res.status(503).json({ error: 'Login Google belum dikonfigurasi di server.' });
+      }
+      try {
+        verified = verifyGoogleToken
+          ? await verifyGoogleToken(credential)
+          : await verifyGoogleIdToken(credential, googleClientId);
+      } catch (error) {
+        console.error('Verifikasi token Google gagal:', error.message);
+        return res.status(401).json({ error: 'Token Google tidak valid atau sudah kedaluwarsa.' });
+      }
+      if (!verified || !verified.email) {
+        return res.status(401).json({ error: 'Identitas Google tidak lengkap.' });
+      }
+    }
+
+    const name = verified
+      ? String(verified.name || verified.email).trim()
+      : (typeof body.name === 'string' ? body.name.trim() : '');
+    const rawEmail = verified ? verified.email : body.email;
+    const identity = normalizeIdentifier(rawEmail);
+    const googleSub = verified && verified.sub ? String(verified.sub) : '';
+    const education = EDUCATION_LEVELS.has(body.education) ? body.education : 'SMA';
+
+    if (!name || name.length > 80 || !identity || !identity.email) {
+      return res.status(400).json({ error: 'Data akun Google tidak valid.' });
+    }
+
+    let user = null;
+    if (googleSub && typeof store.findUserByGoogleSub === 'function') {
+      user = await store.findUserByGoogleSub(googleSub);
+    }
+    if (!user) user = await store.findUserByIdentifier(identity);
+
+    const isNewUser = !user;
+    if (!user) {
+      const randomPassword = crypto.randomBytes(24).toString('hex');
+      const passwordHash = await hashPassword(randomPassword);
+      user = await store.createUser({
+        name,
+        email: identity.email,
+        phone: null,
+        password_hash: passwordHash,
+        education,
+        google_linked: Boolean(verified),
+        google_email: verified ? identity.email : null,
+        google_sub: googleSub || null,
+        created_at: Date.now()
+      });
+    } else if (verified) {
+      const updates = {};
+      if (!Number(user.google_linked)) updates.google_linked = 1;
+      if (user.google_email !== identity.email) updates.google_email = identity.email;
+      if (googleSub && user.google_sub !== googleSub) updates.google_sub = googleSub;
+      if (Object.keys(updates).length > 0) {
+        user = await store.updateUser(user.id, updates);
+      }
+    }
+
+    await startSession(user.id, res);
+    res.status(isNewUser ? 201 : 200).json({ user: toPublicUser(user), isNewUser });
+  });
+
+  app.post('/api/auth/google/unlink', requireSession, async (req, res) => {
+    if (!Number(req.authUser.google_linked)) {
+      return res.status(400).json({ error: 'Akun Google belum tertaut ke akun ini.' });
+    }
+    const user = await store.updateUser(req.authUser.id, {
+      google_linked: 0,
+      google_email: null,
+      google_sub: null
+    });
+    res.json({ user: toPublicUser(user) });
+  });
+
+  app.post('/api/translate', translateLimiter, requireSession, async (req, res) => {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const phrase = typeof body.phrase === 'string' ? body.phrase.trim() : '';
+    if (!phrase || phrase.length > TRANSLATE_MAX_LENGTH) {
+      return res.status(400).json({ error: `Frasa harus diisi dan maksimal ${TRANSLATE_MAX_LENGTH} karakter.` });
+    }
+
+    if (!translatePhrase && !geminiApiKey) {
+      return res.status(503).json({
+        error: 'Layanan terjemahan AI belum dikonfigurasi. Kamus offline akan digunakan.',
+        code: 'TRANSLATE_UNAVAILABLE'
+      });
+    }
+
+    try {
+      const result = translatePhrase
+        ? await translatePhrase(phrase)
+        : await translateWithGemini(phrase, { apiKey: geminiApiKey, model: geminiModel });
+      if (!result || typeof result.meaning !== 'string' || !result.meaning.trim()) {
+        throw new Error('Hasil terjemahan kosong.');
+      }
+      res.json({
+        meaning: result.meaning.trim(),
+        phonetic: typeof result.phonetic === 'string' ? result.phonetic.trim() : '',
+        explanation: typeof result.explanation === 'string' ? result.explanation.trim() : ''
+      });
+    } catch (error) {
+      console.error('Terjemahan gagal:', error.message);
+      res.status(502).json({
+        error: 'Layanan terjemahan sedang tidak tersedia. Kamus offline akan digunakan.',
+        code: 'TRANSLATE_FAILED'
+      });
+    }
   });
 
   app.use('/api', (req, res) => {
@@ -434,6 +892,7 @@ function createApp(options = {}) {
   });
 
   app.locals.closeDatabase = () => store.close();
+  app.locals.store = store;
   return app;
 }
 
@@ -453,4 +912,11 @@ if (require.main === module) {
   startServer();
 }
 
-module.exports = { createApp, normalizeIdentifier, startServer };
+module.exports = {
+  createApp,
+  normalizeIdentifier,
+  openDatabase,
+  startServer,
+  toPublicUser,
+  verifyGoogleIdToken
+};

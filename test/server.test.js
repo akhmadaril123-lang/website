@@ -119,3 +119,29 @@ test('persists onboarding choices and invalidates a logged-out session', async (
   const expiredSessionResponse = await fetch(`${baseUrl}/api/auth/me`, { headers: { cookie } });
   assert.equal(expiredSessionResponse.status, 401);
 });
+
+test('handles forgot password and Google login/registration flow', async () => {
+  const forgotResponse = await postJson('/api/auth/forgot-password', {
+    identifier: 'sania@example.com'
+  });
+  assert.equal(forgotResponse.status, 200);
+
+  const googleRegister = await postJson('/api/auth/google', {
+    name: 'Sania Google',
+    email: 'sania.google@example.com',
+    education: 'SMK'
+  });
+  assert.equal(googleRegister.status, 201);
+  const firstResult = await googleRegister.json();
+  assert.equal(firstResult.isNewUser, true);
+  assert.equal(firstResult.user.education, 'SMK');
+
+  const googleLogin = await postJson('/api/auth/google', {
+    name: 'Sania Google',
+    email: 'sania.google@example.com',
+    education: 'SMK'
+  });
+  assert.equal(googleLogin.status, 200);
+  const secondResult = await googleLogin.json();
+  assert.equal(secondResult.isNewUser, false);
+});

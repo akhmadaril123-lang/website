@@ -3,7 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="SpeakUp - Voice Note Coach. Latihan speaking bahasa Inggris untuk pelajar SMA/SMK dengan koreksi langsung." />
+  <meta name="theme-color" content="#2563eb" />
+  <meta name="color-scheme" content="light" />
   <title>SpeakUp - Voice Note Coach</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%232563eb'/%3E%3Cpath d='M20 16h24a4 4 0 0 1 4 4v14a4 4 0 0 1-4 4H32l-10 8v-8h-2a4 4 0 0 1-4-4V20a4 4 0 0 1 4-4z' fill='%23fff'/%3E%3Crect x='24' y='24' width='4' height='10' rx='2' fill='%232563eb'/%3E%3Crect x='31' y='20' width='4' height='18' rx='2' fill='%232563eb'/%3E%3Crect x='38' y='26' width='4' height='8' rx='2' fill='%232563eb'/%3E%3C/svg%3E" />
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Google Fonts: Plus Jakarta Sans & Inter -->
@@ -11,7 +15,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
   <script>
-    const GOOGLE_CLIENT_ID = '778021422214-3rchusoh5qaht0ufpn0qrqs81nk75h0t.apps.googleusercontent.com';
+    const APP_CONFIG = window.SPEAKUP_CONFIG || {};
+    const GOOGLE_CLIENT_ID = APP_CONFIG.googleClientId || '778021422214-3rchusoh5qaht0ufpn0qrqs81nk75h0t.apps.googleusercontent.com';
+    const GOOGLE_APPS_SCRIPT_URL = APP_CONFIG.appsScriptUrl || 'https://script.google.com/macros/s/AKfycbzzcJ_hXuDdv7Sy6necYQFLrsK9pmYXiEPjCert_l-h_18psTG_3122_qzsdNvBYieP/exec';
     tailwind.config = {
       theme: {
         extend: {
@@ -24,15 +30,26 @@
               50: '#eff6ff',
               100: '#dbeafe',
               200: '#bfdbfe',
+              300: '#93c5fd',
+              400: '#60a5fa',
               500: '#3b82f6',
               600: '#2563eb',
               700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+              950: '#172554',
             },
             mint: {
               50: '#ecfdf5',
               100: '#d1fae5',
+              200: '#a7f3d0',
+              300: '#6ee7b7',
+              400: '#34d399',
               500: '#10b981',
               600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+              900: '#064e3b',
             }
           }
         }
@@ -60,8 +77,30 @@
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    @keyframes splashBarGrow {
+      0%, 100% { transform: scaleY(0.35); opacity: 0.55; }
+      50% { transform: scaleY(1); opacity: 1; }
+    }
+    .splash-bar {
+      transform-origin: bottom;
+      animation: splashBarGrow 1.1s ease-in-out infinite;
+    }
     .screen-enter {
       animation: fadeSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .pb-safe {
+      padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .wave-bar-active,
+      .splash-bar,
+      .screen-enter {
+        animation: none !important;
+      }
+      * {
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
     }
   </style>
 </head>
@@ -83,11 +122,11 @@
     </div>
 
     <!-- Custom Toast / Notification Banner (Pengganti alert) -->
-    <div id="toast-container" class="pointer-events-none absolute top-4 sm:top-10 inset-x-4 z-50 flex flex-col items-center gap-2"></div>
+    <div id="toast-container" role="status" aria-live="polite" class="pointer-events-none absolute top-4 sm:top-10 inset-x-4 z-50 flex flex-col items-center gap-2"></div>
 
     <!-- Modal Google Account Picker & Linking -->
-    <div id="google-modal" class="hidden fixed sm:absolute inset-0 z-50 bg-slate-900/55 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div id="google-modal-card" class="screen-enter w-full bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200 p-5 max-h-[88%] overflow-y-auto">
+    <div id="google-modal" role="dialog" aria-modal="true" aria-label="Pilih Akun Google" onclick="if (event.target === this) closeGoogleAccountModal()" class="hidden fixed sm:absolute inset-0 z-50 bg-slate-900/55 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div id="google-modal-card" tabindex="-1" class="screen-enter w-full bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200 p-5 max-h-[88%] overflow-y-auto">
         <!-- Konten modal dirender oleh JavaScript -->
       </div>
     </div>
@@ -136,10 +175,138 @@
     // =========================================================================
     // 1. STATE APLIKASI & DATA SKENARIO
     // =========================================================================
-    const apiKey = ""; // Otomatis diisi oleh lingkungan runtime saat memanggil Gemini API
+    const DEFAULT_REMINDER_TIME = '19:00';
+
+    function safeStorageGet(key) {
+      try { return window.localStorage.getItem(key); } catch { return null; }
+    }
+    function safeStorageSet(key, value) {
+      try { window.localStorage.setItem(key, value); } catch { /* storage diblokir */ }
+    }
+    function safeStorageRemove(key) {
+      try { window.localStorage.removeItem(key); } catch { /* storage diblokir */ }
+    }
+    function escapeHtml(value) {
+      return String(value == null ? '' : value).replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      })[char]);
+    }
+
+    // Kamus offline sederhana: dipakai saat layanan terjemahan AI belum aktif.
+    const LOCAL_PHRASES = {
+      'i study at school': {
+        meaning: 'Aku belajar di sekolah',
+        phonetic: 'ai stadi et skul',
+        explanation: 'Study dipakai untuk kegiatan belajar. Pakai at sebelum nama tempat.'
+      },
+      'in my free time': {
+        meaning: 'di waktu luangku',
+        phonetic: 'in mai fri taim',
+        explanation: "Gunakan 'in my free time' untuk menjelaskan aktivitas saat tidak sibuk."
+      },
+      'go to school by bicycle': {
+        meaning: 'pergi ke sekolah naik sepeda',
+        phonetic: 'gou tu skul bai baisikel',
+        explanation: "Pakai 'by' sebelum alat transportasi tanpa kata sandang (by bicycle, by bus)."
+      },
+      'i like reading books and listening to music': {
+        meaning: 'Aku suka membaca buku dan mendengarkan musik',
+        phonetic: 'ai laik riding buks end lisening tu miusik',
+        explanation: "Setelah 'like' gunakan bentuk -ing untuk kegiatan yang disukai."
+      },
+      'i wake up at five in the morning': {
+        meaning: 'Aku bangun pukul lima pagi',
+        phonetic: 'ai weik ap et faiv in de morning',
+        explanation: "Gunakan 'at' sebelum jam dan 'in the morning' untuk waktu pagi."
+      },
+      'how are you': {
+        meaning: 'Apa kabar?',
+        phonetic: 'hau ar yu',
+        explanation: 'Kalimat sapaan sehari-hari untuk menanyakan kabar.'
+      },
+      'good morning': {
+        meaning: 'Selamat pagi',
+        phonetic: 'gud morning',
+        explanation: 'Sapaan yang dipakai dari pagi sampai tengah hari.'
+      },
+      'thank you': {
+        meaning: 'Terima kasih',
+        phonetic: 'thenk yu',
+        explanation: 'Ucapan terima kasih yang paling umum.'
+      },
+      'my name is sania': {
+        meaning: 'Namaku Sania',
+        phonetic: 'mai neim is sania',
+        explanation: "Pakai 'My name is ...' untuk memperkenalkan nama."
+      }
+    };
+
+    const LOCAL_WORDS = {
+      i: 'saya', you: 'kamu', we: 'kami', they: 'mereka', he: 'dia (laki-laki)', she: 'dia (perempuan)',
+      my: 'milikku', your: 'milikmu', our: 'milik kami', their: 'milik mereka',
+      name: 'nama', is: 'adalah', am: 'adalah', are: 'adalah', was: 'adalah (dulu)', were: 'adalah (dulu)',
+      study: 'belajar', learn: 'belajar', school: 'sekolah', class: 'kelas', teacher: 'guru', student: 'murid',
+      at: 'di', in: 'di/dalam', on: 'pada', by: 'dengan/naik', to: 'ke', from: 'dari', with: 'dengan',
+      the: 'itu', a: 'sebuah', an: 'sebuah', and: 'dan', but: 'tetapi', or: 'atau', because: 'karena',
+      go: 'pergi', goes: 'pergi', went: 'pergi (dulu)', come: 'datang', like: 'suka', love: 'suka/cinga',
+      reading: 'membaca', book: 'buku', books: 'buku-buku', listening: 'mendengarkan', music: 'musik',
+      free: 'luang/bebas', time: 'waktu', wake: 'bangun', up: 'naik', five: 'lima',
+      morning: 'pagi', afternoon: 'siang', evening: 'sore', night: 'malam',
+      thank: 'terima kasih', thanks: 'terima kasih', good: 'baik', how: 'bagaimana', what: 'apa',
+      where: 'di mana', when: 'kapan', why: 'mengapa', who: 'siapa', very: 'sangat',
+      happy: 'senang', sad: 'sedih', hungry: 'lapar', tired: 'lelah', friend: 'teman',
+      home: 'rumah', house: 'rumah', eat: 'makan', drink: 'minum', play: 'bermain',
+      football: 'sepak bola', soccer: 'sepak bola', help: 'membantu', can: 'bisa', will: 'akan',
+      want: 'ingin', need: 'butuh', speak: 'berbicara', english: 'bahasa Inggris',
+      indonesian: 'bahasa Indonesia', confident: 'percaya diri', confidence: 'percaya diri',
+      practice: 'latihan', today: 'hari ini', tomorrow: 'besok', yesterday: 'kemarin',
+      bicycle: 'sepeda', bike: 'sepeda', bus: 'bus', car: 'mobil', walk: 'berjalan'
+    };
+
+    const LOCAL_PHONETIC = {
+      i: 'ai', you: 'yu', we: 'wi', they: 'dei', he: 'hi', she: 'shi', my: 'mai', your: 'yor',
+      name: 'neim', is: 'is', am: 'em', are: 'ar', study: 'stadi', learn: 'lern', school: 'skul',
+      class: 'klas', teacher: 'ticer', student: 'stiuden', at: 'et', in: 'in', on: 'on', by: 'bai',
+      to: 'tu', from: 'from', with: 'wid', the: 'de', a: 'e', an: 'en', and: 'end', but: 'bat',
+      go: 'gou', like: 'laik', love: 'lav', reading: 'riding', book: 'buk', books: 'buks',
+      listening: 'lisening', music: 'miusik', free: 'fri', time: 'taim', wake: 'weik', up: 'ap',
+      five: 'faiv', morning: 'morning', afternoon: 'afternun', evening: 'ivning', night: 'nait',
+      thank: 'thenk', good: 'gud', how: 'hau', what: 'wat', where: 'wer', when: 'wen', why: 'wai',
+      happy: 'hapi', friend: 'frend', home: 'houm', house: 'haus', eat: 'it', drink: 'drink',
+      play: 'plei', can: 'ken', will: 'wil', want: 'wont', need: 'nid', speak: 'spik',
+      english: 'inglis', confident: 'konfiden', practice: 'praktis', today: 'tudei',
+      tomorrow: 'tumorou', yesterday: 'yesterday', bicycle: 'baisikel', bike: 'baik'
+    };
+
+    function analyzePhraseLocally(phrase) {
+      const clean = String(phrase || '').toLowerCase().replace(/[.,!?;:]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!clean) return { meaning: '', phonetic: '', explanation: '' };
+      if (LOCAL_PHRASES[clean]) return { ...LOCAL_PHRASES[clean] };
+
+      const words = clean.split(' ');
+      const meaning = words.map(word => LOCAL_WORDS[word] || word).join(' ');
+      const phonetic = words.map(word => LOCAL_PHONETIC[word] || word).join(' ');
+      const known = words.filter(word => LOCAL_WORDS[word]).length;
+      return {
+        meaning: known > 0 ? meaning : `Terjemahan untuk "${phrase}"`,
+        phonetic,
+        explanation: 'Kamus offline menerjemahkan kata per kata. Aktifkan GEMINI_API_KEY di server agar terjemahan lebih alami dan kontekstual.'
+      };
+    }
 
     const state = {
-      currentScreen: 'splash', // splash, login, forgot, register, consent, level, home, practice, result, translate, quiz, profile, closing, goodbye
+      currentScreen: 'splash', // launcher, splash, onboarding, login, forgot, register, consent, level, home, practice, result, translate, quiz, profile, closing, goodbye, reset
+      onboardingStep: 0,
+      splashTimer: null,
+      checkingSession: true,
+      forgotSentTo: '',
+      resetLink: '',
+      resetToken: '',
+      translateOrigin: 'home',
       // Daftar akun tersimpan (tersambung Google maupun Email/HP)
       accounts: [],
       googleClientId: GOOGLE_CLIENT_ID,
@@ -151,12 +318,14 @@
         pendingEmail: '',
         pendingEducation: 'SMA',
         pendingGoogleSub: '',
+        pendingCredential: '',
         statusMessage: ''
       },
       user: {
         id: '',
         name: 'Pelajar',
         email: '',
+        phone: null,
         provider: 'email', // email atau google
         googleLinked: false,
         googleEmail: '',
@@ -165,21 +334,22 @@
         streak: 3,
         newWords: 4,
         weeklyProgress: 65, // persen
-        reminderTime: '19:00',
+        reminderTime: DEFAULT_REMINDER_TIME,
         micPermission: false,
         privacyAgreed: false,
-        parentalAgreed: false
+        parentalAgreed: false,
+        onboardingComplete: false
       },
       // Daftar topik latihan speaking
       topics: [
         {
           id: 'intro',
           title: 'Perkenalkan dirimu',
-          prompt: 'My name is Sania, and I study at SMAN 1 Kejayan',
+          prompt: 'My name is Sania and I study at SMAN 1 Kejayan.',
           samplePhrase: 'I study at school',
           sampleMeaning: 'Aku belajar di sekolah',
-          samplePhonetic: 'ai stadi at skul',
-          sampleExplanation: "Study dipakai untuk kegiatan belajar. Pakai 'at' sebelum nama tempat."
+          samplePhonetic: 'ai stadi et skul',
+          sampleExplanation: 'Study dipakai untuk kegiatan belajar. Pakai at sebelum nama tempat.'
         },
         {
           id: 'hobby',
@@ -211,26 +381,26 @@
           { text: 'My', error: false },
           { text: 'name', error: false },
           { text: 'is', error: false },
-          { text: 'Sania,', error: false },
+          { text: 'Sania', error: false },
           { text: 'and', error: false },
           { text: 'I', error: false },
           { text: 'studi', error: true, expected: 'study' },
           { text: 'at', error: false },
           { text: 'SMAN', error: false },
           { text: '1', error: false },
-          { text: 'Kejayan', error: false }
+          { text: 'Kejayan.', error: false }
         ],
         totalScore: 82,
         grammarScore: 90,
         pronunciationScore: 75,
-        feedback: "Hampir tepat! Ucapkan 'study' seperti *stadi*",
+        feedback: 'Hampir tepat! Ucapkan study seperti "stadi".',
         sessionCompleted: false
       },
       // State terjemahan & cara baca
       translation: {
         inputText: 'I study at school',
         meaning: 'Aku belajar di sekolah',
-        phonetic: 'ai stadi at skul',
+        phonetic: 'ai stadi et skul',
         explanation: 'Study dipakai untuk kegiatan belajar. Pakai at sebelum nama tempat.',
         isLoading: false
       },
@@ -244,7 +414,7 @@
             q: "Bagaimana cara baca yang tepat untuk kata 'study'?",
             options: ["stadi", "studi", "stedi", "stodai"],
             answer: 0,
-            info: "'Study' dilafalkan /ˈstʌdi/ atau seperti 'stadi'."
+            info: "Kata 'study' dilafalkan seperti 'stadi'."
           },
           {
             q: "Preposisi yang tepat sebelum nama sekolah spesifik: 'I study ___ SMAN 1 Kejayan'",
@@ -290,13 +460,16 @@
       };
       const toast = document.createElement('div');
       toast.className = `pointer-events-auto px-4 py-2.5 rounded-2xl text-xs font-medium shadow-lg flex items-center gap-2 screen-enter ${colors[type] || colors.info}`;
-      toast.innerHTML = `<span>${message}</span>`;
+      toast.setAttribute('role', 'status');
+      const text = document.createElement('span');
+      text.textContent = String(message == null ? '' : message);
+      toast.appendChild(text);
       container.appendChild(toast);
       setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transition = 'opacity 0.25s ease';
         setTimeout(() => toast.remove(), 260);
-      }, 2800);
+      }, 3200);
     }
 
     function speakEnglish(text) {
@@ -304,12 +477,25 @@
         showToast('Browser tidak mendukung pemutar suara otomatis.', 'warning');
         return;
       }
+      const clean = String(text == null ? '' : text).trim();
+      if (!clean) return;
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
+      const utterance = new SpeechSynthesisUtterance(clean);
       utterance.lang = 'en-US';
       utterance.rate = 0.92;
+      utterance.onerror = () => showToast('Suara tidak dapat diputar di perangkat ini.', 'warning');
       window.speechSynthesis.speak(utterance);
-      showToast('Memutar pengucapan bahasa Inggris...', 'info');
+    }
+
+    function speakTopicPrompt() {
+      const topic = state.topics[state.selectedTopicIndex];
+      if (topic) speakEnglish(topic.prompt);
+    }
+
+    function speakTranslation() {
+      const input = document.getElementById('translate-input');
+      const text = input ? input.value.trim() : state.translation.inputText;
+      speakEnglish(text);
     }
 
     // =========================================================================
@@ -319,8 +505,11 @@
       state.googleModal.isOpen = true;
       state.googleModal.step = 'picker';
       state.googleModal.selectedCandidate = null;
+      state.googleModal.pendingCredential = '';
       state.googleModal.statusMessage = '';
       renderGoogleModal();
+      const card = document.getElementById('google-modal-card');
+      if (card) card.focus();
     }
 
     let googleIdentityServicesPromise;
@@ -416,6 +605,7 @@
         name: claims.name,
         email: claims.email.toLowerCase(),
         googleSub: claims.sub,
+        credential: response.credential,
         avatarColor: 'from-emerald-500 to-teal-600'
       };
       selectGoogleCandidate(candidate);
@@ -424,6 +614,8 @@
     function closeGoogleAccountModal() {
       state.googleModal.isOpen = false;
       state.googleModal.step = 'picker';
+      state.googleModal.pendingCredential = '';
+      state.googleModal.statusMessage = '';
       renderGoogleModal();
     }
 
@@ -438,29 +630,33 @@
 
     function selectGoogleCandidate(candidate) {
       state.googleModal.selectedCandidate = candidate;
+      state.googleModal.pendingCredential = candidate.credential || '';
       const existingAccount = findLinkedAccountByGoogle(candidate);
 
       if (existingAccount && existingAccount.googleLinked) {
-        // Akun Google sudah tertaut ke akun SpeakUp
-        existingAccount.name = existingAccount.name || candidate.name;
-        existingAccount.provider = 'google';
-        existingAccount.googleEmail = candidate.email;
-        existingAccount.googleSub = candidate.googleSub;
-
-        state.user = { ...existingAccount };
         state.googleModal.step = 'linking-existing';
         state.googleModal.statusMessage = `Menautkan sesi & memverifikasi akun Google (${candidate.email})...`;
         renderGoogleModal();
-        render();
 
-        setTimeout(() => {
-          if (!state.googleModal.isOpen) return;
+        apiRequest('/api/auth/google', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: existingAccount.name || candidate.name,
+            email: candidate.email,
+            education: existingAccount.education || 'SMA',
+            credential: candidate.credential || ''
+          })
+        }).then(result => {
+          applyAuthenticatedUser(result.user);
           closeGoogleAccountModal();
-          showToast(`Akun Google terhubung • Selamat datang, ${state.user.name}!`, 'success');
-          navigate('home');
-        }, 900);
+          showToast(`Akun Google terhubung - Selamat datang, ${state.user.name}!`, 'success');
+          navigate(state.user.onboardingComplete ? 'home' : state.user.privacyAgreed ? 'level' : 'consent');
+        }).catch(err => {
+          closeGoogleAccountModal();
+          showToast(err.message, 'error');
+        });
       } else {
-        // Akun Google BARU: buat profil SpeakUp & tautkan identitas Google terlebih dahulu
+        // Akun Google BARU atau langsung cek ke backend
         state.googleModal.step = 'link-new';
         state.googleModal.pendingName = candidate.name;
         state.googleModal.pendingEmail = candidate.email;
@@ -475,66 +671,51 @@
       renderGoogleModal();
     }
 
-    function confirmCreateAndLinkGoogleAccount(e) {
+    async function confirmCreateAndLinkGoogleAccount(e) {
       e.preventDefault();
       const fullName = document.getElementById('google-link-name').value.trim();
       const email = state.googleModal.pendingEmail;
       const edu = state.googleModal.pendingEducation || 'SMA';
-      const sub = state.googleModal.pendingGoogleSub || ('google-oauth2|' + Date.now());
 
       if (!fullName) {
         showToast('Nama lengkap wajib diisi untuk membuat akun SpeakUp.', 'warning');
         return;
       }
 
-      const newAccount = {
-        id: 'acc-' + Date.now(),
-        name: fullName,
-        email: email,
-        provider: 'google',
-        googleLinked: true,
-        googleEmail: email,
-        googleSub: sub,
-        education: edu,
-        level: 'Pemula',
-        streak: 1,
-        newWords: 0,
-        weeklyProgress: 15,
-        reminderTime: '19:00',
-        micPermission: false,
-        privacyAgreed: false,
-        parentalAgreed: false
-      };
-
-      // Simpan atau perbarui di daftar akun
-      const idx = state.accounts.findIndex(a => a.email.toLowerCase() === email.toLowerCase());
-      if (idx >= 0) {
-        state.accounts[idx] = { ...state.accounts[idx], ...newAccount };
-      } else {
-        state.accounts.push(newAccount);
+      try {
+        const result = await apiRequest('/api/auth/google', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: fullName,
+            email,
+            education: edu,
+            credential: state.googleModal.pendingCredential || ''
+          })
+        });
+        applyAuthenticatedUser(result.user);
+        closeGoogleAccountModal();
+        if (result.isNewUser || !state.user.onboardingComplete) {
+          showToast(`Akun SpeakUp dibuat & ditautkan ke ${email}. Lengkapi persetujuan & level!`, 'success');
+          navigate(state.user.privacyAgreed ? 'level' : 'consent');
+        } else {
+          showToast(`Selamat datang kembali, ${state.user.name}!`, 'success');
+          navigate('home');
+        }
+      } catch (error) {
+        showToast(error.message, 'error');
       }
-
-      state.user = { ...newAccount };
-      closeGoogleAccountModal();
-      showToast(`Akun SpeakUp dibuat & ditautkan ke ${email}. Lengkapi persetujuan & level!`, 'success');
-      navigate('consent');
     }
 
-    function unlinkGoogleAccount() {
-      state.user.googleLinked = false;
-      state.user.provider = 'email';
+    async function unlinkGoogleAccount() {
       const prevGoogleEmail = state.user.googleEmail || state.user.email;
-      state.user.googleEmail = '';
-
-      const idx = state.accounts.findIndex(a => a.id === state.user.id || a.email === state.user.email);
-      if (idx >= 0) {
-        state.accounts[idx].googleLinked = false;
-        state.accounts[idx].provider = 'email';
-        state.accounts[idx].googleEmail = '';
+      try {
+        const result = await apiRequest('/api/auth/google/unlink', { method: 'POST' });
+        applyAuthenticatedUser(result.user);
+        showToast(`Tautan akun Google (${prevGoogleEmail}) dilepas.`, 'info');
+        render();
+      } catch (error) {
+        showToast(error.message, 'error');
       }
-
-      showToast(`Tautan akun Google (${prevGoogleEmail}) dilepas.`, 'info');
-      render();
     }
 
     function renderGoogleModal() {
@@ -554,14 +735,14 @@
         card.innerHTML = `
           <div class="py-5 text-center space-y-3">
             <div class="w-14 h-14 mx-auto rounded-2xl bg-mint-50 border border-mint-200 flex items-center justify-center">
-              <div class="w-7 h-7 border-3 border-brand-600 border-t-transparent rounded-full animate-spin"></div>
+              <div class="w-7 h-7 border-4 border-brand-600 border-t-transparent rounded-full animate-spin"></div>
             </div>
             <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-mint-100 text-mint-700 text-xs font-bold">
-              ✓ Akun Google terhubung
+              Akun Google terhubung
             </span>
-            <h3 class="font-display text-lg font-extrabold text-slate-900">${c.name}</h3>
-            <p class="text-xs text-slate-500">${c.email}</p>
-            <p class="text-xs font-medium text-brand-600 pt-1">${state.googleModal.statusMessage}</p>
+            <h3 class="font-display text-lg font-extrabold text-slate-900">${escapeHtml(c.name)}</h3>
+            <p class="text-xs text-slate-500">${escapeHtml(c.email)}</p>
+            <p class="text-xs font-medium text-brand-600 pt-1">${escapeHtml(state.googleModal.statusMessage)}</p>
           </div>
         `;
         return;
@@ -569,12 +750,12 @@
 
       if (state.googleModal.step === 'link-new') {
         const c = state.googleModal.selectedCandidate;
-        const jenjangList = ['SMA', 'SMK', 'SMP', 'Umum'];
+        const jenjangList = ['SMA', 'SMK'];
         card.innerHTML = `
           <div class="space-y-4">
             <div class="flex items-center justify-between">
               <button onclick="state.googleModal.step='picker'; renderGoogleModal();" class="text-xs font-bold text-slate-500 hover:text-slate-800">
-                ← Ganti Akun Google
+                Ganti Akun Google
               </button>
               <span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">
                 Akun Google Baru
@@ -582,27 +763,27 @@
             </div>
 
             <div class="p-3.5 rounded-2xl bg-brand-50/70 border border-brand-200 flex items-center gap-3">
-              <div class="w-11 h-11 rounded-2xl bg-gradient-to-br ${c.avatarColor} text-white font-display font-extrabold flex items-center justify-center text-base shrink-0">
-                ${c.name.charAt(0).toUpperCase()}
+              <div class="w-11 h-11 rounded-2xl bg-gradient-to-br ${escapeHtml(c.avatarColor)} text-white font-display font-extrabold flex items-center justify-center text-base shrink-0">
+                ${escapeHtml(c.name.charAt(0).toUpperCase())}
               </div>
               <div class="min-w-0 flex-1">
-                <p class="text-xs font-extrabold text-slate-900 truncate">${c.email}</p>
+                <p class="text-xs font-extrabold text-slate-900 truncate">${escapeHtml(c.email)}</p>
                 <p class="text-[11px] text-brand-700 font-medium mt-0.5">
-                  Belum terhubung ke SpeakUp • Buat profil & tautkan Google
+                  Belum terhubung ke SpeakUp - Buat profil & tautkan Google
                 </p>
               </div>
             </div>
 
             <form onsubmit="confirmCreateAndLinkGoogleAccount(event)" class="space-y-3">
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Nama lengkap di SpeakUp</label>
-                <input id="google-link-name" type="text" value="${state.googleModal.pendingName}" required
+                <label for="google-link-name" class="block text-xs font-semibold text-slate-700 mb-1">Nama lengkap di SpeakUp</label>
+                <input id="google-link-name" type="text" value="${escapeHtml(state.googleModal.pendingName)}" maxlength="80" required
                   class="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 text-sm outline-none focus:border-brand-500" />
               </div>
 
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1.5">Jenjang</label>
-                <div class="grid grid-cols-4 gap-2">
+                <div class="grid grid-cols-2 gap-2">
                   ${jenjangList.map(j => `
                     <button type="button" onclick="setPendingGoogleEducation('${j}')"
                       class="py-2 rounded-xl border text-xs font-bold transition-all ${state.googleModal.pendingEducation === j ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600'}">
@@ -634,18 +815,22 @@
               </svg>
               <h3 class="font-display text-base font-extrabold text-slate-900">Pilih Akun Google</h3>
             </div>
-            <button onclick="closeGoogleAccountModal()" class="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600">✕</button>
+            <button onclick="closeGoogleAccountModal()" aria-label="Tutup" class="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
 
           <p class="text-xs text-slate-500 leading-relaxed">
             Pilih akun Google untuk menautkan atau membuat akun <strong>SpeakUp</strong>:
           </p>
 
-          <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4">
-            <p class="text-[11px] text-slate-500 text-center mb-3">
-              Pilih akun Google asli yang ingin ditautkan ke SpeakUp.
+          <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+            <p class="text-[11px] text-slate-500 text-center">
+              Masuk cepat dengan akun Google Anda:
             </p>
-            <div id="google-gis-button" class="flex justify-center"></div>
+            <div id="google-gis-button" class="flex justify-center pt-1"></div>
           </div>
         </div>
       `;
@@ -655,17 +840,22 @@
     // =========================================================================
     // 3. NAVIGASI & RENDER SCREEN
     // =========================================================================
+    let lastRenderedScreen = null;
+
     function navigate(screen) {
       // Hentikan rekaman jika pindah layar saat masih merekam
       if (state.recording.isRecording && screen !== 'practice') {
         stopRecording(true);
       }
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      if (state.googleModal.isOpen) closeGoogleAccountModal();
       state.currentScreen = screen;
-      render();
+      render(true);
     }
 
     function updateBottomNav() {
       const nav = document.getElementById('bottom-nav');
+      if (!nav) return;
       const mainScreens = ['home', 'practice', 'result', 'translate', 'quiz', 'profile'];
       if (mainScreens.includes(state.currentScreen)) {
         nav.classList.remove('hidden');
@@ -673,12 +863,15 @@
         nav.classList.add('hidden');
       }
 
+      const activeTarget = state.currentScreen === 'translate'
+        ? (state.translateOrigin === 'result' ? 'practice' : 'home')
+        : state.currentScreen;
+
       document.querySelectorAll('.nav-btn').forEach(btn => {
         const target = btn.getAttribute('data-nav');
         const isActive =
-          target === state.currentScreen ||
-          (target === 'practice' && state.currentScreen === 'result') ||
-          (target === 'home' && state.currentScreen === 'translate');
+          target === activeTarget ||
+          (target === 'practice' && state.currentScreen === 'result');
 
         if (isActive) {
           btn.classList.add('text-brand-600', 'bg-brand-50', 'font-semibold');
@@ -690,19 +883,29 @@
       });
     }
 
-    function render() {
+    function render(resetScroll = false) {
       const container = document.getElementById('screen-container');
+      if (!container) return;
       updateBottomNav();
 
       switch (state.currentScreen) {
+        case 'launcher':
+          container.innerHTML = renderLauncherScreen();
+          break;
         case 'splash':
           container.innerHTML = renderSplashScreen();
+          break;
+        case 'onboarding':
+          container.innerHTML = renderOnboardingScreen();
           break;
         case 'login':
           container.innerHTML = renderLoginScreen();
           break;
         case 'forgot':
           container.innerHTML = renderForgotScreen();
+          break;
+        case 'reset':
+          container.innerHTML = renderResetScreen();
           break;
         case 'register':
           container.innerHTML = renderRegisterScreen();
@@ -737,19 +940,105 @@
         case 'goodbye':
           container.innerHTML = renderGoodbyeScreen();
           break;
+        default:
+          state.currentScreen = 'splash';
+          container.innerHTML = renderSplashScreen();
       }
-      container.scrollTop = 0;
+      if (resetScroll || lastRenderedScreen !== state.currentScreen) {
+        container.scrollTop = 0;
+      }
+      lastRenderedScreen = state.currentScreen;
     }
 
     // =========================================================================
-    // 4. TAHAP 1: SPLASH SCREEN (MEMBUKA APLIKASI)
+    // 4. TAHAP 1: MEMBUKA APLIKASI (1.1 IKON -> 1.2 SPLASH -> 1.3 CEK SESI & ONBOARDING 3 LAYAR)
     // =========================================================================
+    function openAppFromLauncher() {
+      state.checkingSession = true;
+      navigate('splash');
+      clearTimeout(state.splashTimer);
+      state.splashTimer = setTimeout(async () => {
+        await checkSessionAfterSplash();
+      }, 1800);
+    }
+
+    async function checkSessionAfterSplash() {
+      if (state.resetToken) {
+        state.checkingSession = false;
+        navigate('reset');
+        return;
+      }
+      try {
+        const result = await apiRequest('/api/auth/me');
+        if (!result || !result.user) {
+          const err = new Error('Sesi tidak ditemukan. Silakan masuk kembali.');
+          err.status = 401;
+          throw err;
+        }
+        applyAuthenticatedUser(result.user);
+        state.checkingSession = false;
+        // 1.3 Cek sesi masuk: Jika siswa sudah pernah masuk, langsung ke Beranda (atau lanjut registrasi jika belum selesai)
+        navigate(state.user.onboardingComplete ? 'home' : state.user.privacyAgreed ? 'level' : 'consent');
+      } catch (error) {
+        state.checkingSession = false;
+        if (error.status && error.status !== 401) {
+          showToast(error.message, 'error');
+        }
+        // Pertama kali membuka: tampil onboarding 3 layar sebelum Login
+        const seenOnboarding = safeStorageGet('speakup_onboarding_seen') === '1';
+        if (!seenOnboarding) {
+          state.onboardingStep = 0;
+          navigate('onboarding');
+        } else {
+          navigate('login');
+        }
+      }
+    }
+
+    function renderLauncherScreen() {
+      return `
+        <div class="screen-enter min-h-full flex flex-col justify-between p-7 bg-gradient-to-b from-slate-900 via-slate-800 to-brand-950 text-white select-none">
+          <div class="pt-4 text-center">
+            <p class="text-xs font-medium text-slate-300">Layar Utama HP Android</p>
+            <p class="font-display text-2xl font-extrabold tracking-tight mt-1">19:00</p>
+            <p class="text-[11px] text-slate-400">Sabtu - Pasuruan</p>
+          </div>
+
+          <div class="my-auto flex flex-col items-center">
+            <p class="text-xs text-slate-300 mb-5 bg-white/10 px-3.5 py-1.5 rounded-full backdrop-blur-sm border border-white/10">
+              1.1 Ketuk ikon <strong>Speak Up</strong> untuk membuka aplikasi
+            </p>
+            <button onclick="openAppFromLauncher()" class="group flex flex-col items-center gap-2.5 focus:outline-none">
+              <div class="p-1.5 rounded-[2rem] bg-white/10 group-hover:bg-white/20 group-active:scale-95 transition-all shadow-2xl">
+                ${renderAppLogo("w-20 h-20")}
+              </div>
+              <span class="font-display text-sm font-bold text-white tracking-wide group-hover:text-brand-200">Speak Up</span>
+            </button>
+          </div>
+
+          <div class="pb-4 flex justify-center gap-4 opacity-50">
+            <div class="w-11 h-11 rounded-2xl bg-white/15"></div>
+            <div class="w-11 h-11 rounded-2xl bg-white/15"></div>
+            <div class="w-11 h-11 rounded-2xl bg-white/15"></div>
+            <div class="w-11 h-11 rounded-2xl bg-white/15"></div>
+          </div>
+        </div>
+      `;
+    }
+
     function renderSplashScreen() {
+      const bars = [24, 38, 52, 68, 84, 100];
       return `
         <div class="screen-enter min-h-full flex flex-col justify-between p-7 bg-gradient-to-b from-brand-50 via-white to-mint-50/50">
-          <div class="pt-6 flex justify-end">
+          <div class="pt-4 flex items-center justify-between">
+            <button onclick="clearTimeout(state.splashTimer); navigate('launcher')" class="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-slate-600">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              <span>Layar HP</span>
+            </button>
             <span class="px-3 py-1 rounded-full bg-white border border-slate-200/80 text-[11px] font-semibold text-brand-600 shadow-sm">
-              Versi Pelajar • v1.0
+              1.2 Splash screen
             </span>
           </div>
 
@@ -758,54 +1047,417 @@
             <h1 class="font-display text-3xl font-extrabold text-slate-900 tracking-tight">
               Speak Up
             </h1>
-            <p class="text-sm font-semibold text-brand-600 tracking-wide uppercase mt-1">
-              Voice note Coach
+            <p class="text-sm font-semibold text-brand-600 tracking-wide mt-1">
+              Voice Note Coach
+            </p>
+            <p class="text-sm font-bold text-slate-700 mt-3">
+              Berani bicara, tumbuh percaya diri.
             </p>
 
-            <div class="mt-8 bg-white/90 backdrop-blur border border-slate-200/80 rounded-3xl p-5 shadow-sm w-full">
-              <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-mint-50 text-mint-600 text-xs font-semibold mb-2.5">
-                <span class="w-2 h-2 rounded-full bg-mint-500 animate-pulse"></span>
-                Ruang aman untuk bicara
-              </div>
-              <p class="text-base font-bold text-slate-800 leading-snug">
-                "Berani bicara, tumbuh percaya diri"
-              </p>
-              <p class="text-xs text-slate-500 mt-2 leading-relaxed">
-                Latihan speaking bahasa Inggris tanpa takut salah dengan umpan balik pelafalan instan.
-              </p>
+            <!-- Batang gelombang naik satu per satu -->
+            <div class="mt-8 h-14 flex items-end justify-center gap-2 px-6" aria-label="Gelombang suara">
+              ${bars.map((h, i) => `
+                <div class="w-2.5 rounded-full bg-gradient-to-t from-brand-600 to-mint-500 splash-bar"
+                  style="height: ${h}%; animation-delay: ${i * 0.14}s"></div>
+              `).join('')}
             </div>
+            <p class="text-xs text-slate-400 mt-4">
+              ${state.checkingSession ? 'Mengecek sesi masuk...' : 'Siap mulai latihan'}
+            </p>
           </div>
 
-          <div class="pb-4">
-            <button onclick="navigate('login')" class="w-full py-4 rounded-2xl bg-brand-600 hover:bg-brand-700 active:scale-[0.99] text-white font-bold text-base shadow-lg shadow-brand-600/25 transition-all flex items-center justify-center gap-2">
-              <span>Lanjut</span>
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-              </svg>
+          <div class="pb-4 space-y-2">
+            <button onclick="clearTimeout(state.splashTimer); state.onboardingStep = 0; navigate('onboarding')" class="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 active:scale-[0.99] text-white font-bold text-sm shadow-lg shadow-brand-600/25 transition-all">
+              Lanjut
             </button>
           </div>
         </div>
       `;
     }
 
+    function renderOnboardingScreen() {
+      const slides = [
+        {
+          badge: 'Onboarding 1/3',
+          svg: '<svg class="w-10 h-10 text-brand-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>',
+          title: 'Ruang aman untuk bicara',
+          desc: 'Latihan speaking tanpa takut salah dan tanpa dihakimi.'
+        },
+        {
+          badge: 'Onboarding 2/3',
+          svg: '<svg class="w-10 h-10 text-brand-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>',
+          title: 'Rekam voice note kapan saja',
+          desc: 'Bicara sesuai topik harian tanpa penonton, cukup dari HP-mu.'
+        },
+        {
+          badge: 'Onboarding 3/3',
+          svg: '<svg class="w-10 h-10 text-brand-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>',
+          title: 'Koreksi & cara baca langsung',
+          desc: 'Dapatkan skor grammar, pengucapan, arti, dan cara baca setiap selesai latihan.'
+        }
+      ];
+      const current = slides[state.onboardingStep] || slides[0];
+      return `
+        <div class="screen-enter min-h-full flex flex-col justify-between p-7 bg-white">
+          <div class="pt-4 flex items-center justify-between">
+            <span class="px-3 py-1 rounded-full bg-brand-50 text-brand-600 text-[11px] font-bold">
+              ${current.badge}
+            </span>
+            <button onclick="finishIntroOnboarding()" class="text-xs font-semibold text-slate-400 hover:text-slate-600">
+              Lewati
+            </button>
+          </div>
+
+          <div class="my-auto py-8 flex flex-col items-center text-center">
+            <div class="w-24 h-24 rounded-3xl bg-gradient-to-br from-brand-50 to-mint-50 border border-brand-100 flex items-center justify-center mb-6 shadow-sm">
+              ${current.svg}
+            </div>
+            <h1 class="font-display text-2xl font-extrabold text-slate-900 leading-snug">
+              ${current.title}
+            </h1>
+            <p class="text-sm text-slate-600 mt-3 leading-relaxed max-w-[280px]">
+              ${current.desc}
+            </p>
+
+            <div class="flex items-center gap-2 mt-8">
+              ${slides.map((_, idx) => `
+                <button onclick="state.onboardingStep = ${idx}; render();"
+                  class="h-2 rounded-full transition-all ${state.onboardingStep === idx ? 'w-7 bg-brand-600' : 'w-2 bg-slate-200'}"></button>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="pb-4">
+            <button onclick="nextIntroOnboarding()" class="w-full py-4 rounded-2xl bg-brand-600 hover:bg-brand-700 active:scale-[0.99] text-white font-bold text-sm shadow-lg shadow-brand-600/25 transition-all">
+              Lanjut
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function nextIntroOnboarding() {
+      if (state.onboardingStep < 2) {
+        state.onboardingStep += 1;
+        render();
+      } else {
+        finishIntroOnboarding();
+      }
+    }
+
+    function finishIntroOnboarding() {
+      safeStorageSet('speakup_onboarding_seen', '1');
+      navigate('login');
+    }
+
     // =========================================================================
-    // 5. TAHAP 2: LOGIN & LUPA KATA SANDI
+    // 5. TAHAP 2: LOGIN, LUPA SANDI & KOMUNIKASI BACKEND / GOOGLE APPS SCRIPT
     // =========================================================================
+    const LOCAL_SESSION_KEY = 'speakup_session_token';
+
+    function normalizeClientIdentifier(value) {
+      if (typeof value !== 'string') return null;
+      const identifier = value.trim();
+      if (!identifier || identifier.length > 254) return null;
+      if (identifier.includes('@')) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) return null;
+        return { email: identifier.toLowerCase(), phone: null };
+      }
+      const phoneInput = identifier.replace(/[\s().-]/g, '');
+      let phone = phoneInput;
+      if (/^08\d{8,11}$/.test(phoneInput)) {
+        phone = `+62${phoneInput.slice(1)}`;
+      } else if (/^62\d{8,13}$/.test(phoneInput)) {
+        phone = `+${phoneInput}`;
+      } else if (/^0[1-9]\d{7,13}$/.test(phoneInput)) {
+        phone = `+62${phoneInput.slice(1)}`;
+      }
+      if (!/^\+[1-9]\d{7,14}$/.test(phone)) return null;
+      return { email: null, phone };
+    }
+
+    function toClientPublicUser(row) {
+      const intOr = (value, fallback) => {
+        const number = Number(value);
+        return Number.isFinite(number) ? Math.trunc(number) : fallback;
+      };
+      const googleLinked = Boolean(Number(row.google_linked ?? row.googleLinked ?? 0));
+      return {
+        id: String(row.id),
+        name: row.name,
+        email: row.email || null,
+        phone: row.phone || null,
+        education: row.education || 'SMA',
+        level: row.level || 'Pemula',
+        streak: intOr(row.streak, 3),
+        newWords: intOr(row.new_words ?? row.newWords, 4),
+        weeklyProgress: intOr(row.weekly_progress ?? row.weeklyProgress, 65),
+        provider: googleLinked ? 'google' : 'email',
+        googleLinked,
+        googleEmail: row.google_email || row.googleEmail || null,
+        reminderTime: row.reminder_time || row.reminderTime || '19:00',
+        micPermission: Boolean(Number(row.mic_permission ?? row.micPermission ?? 0)),
+        privacyAgreed: Boolean(Number(row.privacy_agreed ?? row.privacyAgreed ?? 0)),
+        parentalAgreed: Boolean(Number(row.parental_agreed ?? row.parentalAgreed ?? 0)),
+        onboardingComplete: Boolean(Number(row.onboarding_complete ?? row.onboardingComplete ?? 0))
+      };
+    }
+
+    async function sha256Hex(input) {
+      if (window.crypto && window.crypto.subtle) {
+        const buf = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+      let h = 0;
+      for (let i = 0; i < input.length; i++) {
+        h = ((h << 5) - h) + input.charCodeAt(i);
+        h |= 0;
+      }
+      return 'fallback-' + Math.abs(h).toString(16);
+    }
+
+    async function callDirectAppsScript(action, payload = {}) {
+      const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        redirect: 'follow',
+        body: JSON.stringify({ action, ...payload })
+      });
+      const rawText = await response.text();
+      let result;
+      try {
+        result = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        throw new Error('Respons Google Apps Script tidak valid.');
+      }
+      if (!response.ok || !result || result.ok !== true) {
+        throw new Error((result && result.error) || 'Permintaan ke Google Apps Script gagal.');
+      }
+      return result.data;
+    }
+
+    async function fallbackAppsScriptApi(url, options = {}) {
+      const method = (options.method || 'GET').toUpperCase();
+      const body = options.body ? JSON.parse(options.body) : {};
+      const sessionHash = safeStorageGet(LOCAL_SESSION_KEY) || '';
+
+      if (url === '/api/auth/me' && method === 'GET') {
+        if (!sessionHash) {
+          const err = new Error('Sesi tidak ditemukan. Silakan masuk kembali.');
+          err.status = 401;
+          throw err;
+        }
+        const user = await callDirectAppsScript('findSessionUser', { sessionHash, now: Date.now() });
+        if (!user) {
+          safeStorageRemove(LOCAL_SESSION_KEY);
+          const err = new Error('Sesi sudah berakhir. Silakan masuk kembali.');
+          err.status = 401;
+          throw err;
+        }
+        return { user: toClientPublicUser(user) };
+      }
+
+      if (url === '/api/auth/register' && method === 'POST') {
+        const name = typeof body.name === 'string' ? body.name.trim() : '';
+        const identity = normalizeClientIdentifier(body.identifier);
+        const password = body.password;
+        const education = body.education || 'SMA';
+        if (!name || name.length > 80) throw new Error('Nama wajib diisi dan maksimal 80 karakter.');
+        if (!identity) throw new Error('Masukkan email yang valid atau nomor HP yang valid.');
+        if (typeof password !== 'string' || password.length < 8) {
+          throw new Error('Kata sandi harus terdiri dari minimal 8 karakter.');
+        }
+        const existing = await callDirectAppsScript('findUserByIdentifier', { identity });
+        if (existing) throw new Error('Email atau nomor HP sudah terdaftar.');
+
+        const passHash = 'sha256$' + await sha256Hex(password);
+        const created = await callDirectAppsScript('createUser', {
+          user: {
+            id: (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : ('usr-' + Date.now()),
+            name,
+            email: identity.email,
+            phone: identity.phone,
+            password_hash: passHash,
+            education,
+            level: 'Pemula',
+            reminder_time: '19:00',
+            mic_permission: 0,
+            privacy_agreed: 0,
+            parental_agreed: 0,
+            onboarding_complete: 0,
+            created_at: Date.now()
+          }
+        });
+        const newSessionHash = await sha256Hex(created.id + '-' + Date.now() + '-' + Math.random());
+        await callDirectAppsScript('createSession', {
+          session: {
+            session_hash: newSessionHash,
+            user_id: created.id,
+            expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000
+          },
+          now: Date.now()
+        });
+        safeStorageSet(LOCAL_SESSION_KEY, newSessionHash);
+        return { user: toClientPublicUser(created) };
+      }
+
+      if (url === '/api/auth/login' && method === 'POST') {
+        const identity = normalizeClientIdentifier(body.identifier);
+        if (!identity || typeof body.password !== 'string') {
+          throw new Error('Email/nomor HP dan kata sandi wajib diisi.');
+        }
+        const user = await callDirectAppsScript('findUserByIdentifier', { identity });
+        if (!user) throw new Error('Email/nomor HP atau kata sandi salah.');
+
+        const candidateSha = 'sha256$' + await sha256Hex(body.password);
+        if (user.password_hash !== candidateSha && user.password_hash !== body.password) {
+          throw new Error('Email/nomor HP atau kata sandi salah.');
+        }
+        const newSessionHash = await sha256Hex(user.id + '-' + Date.now() + '-' + Math.random());
+        await callDirectAppsScript('createSession', {
+          session: {
+            session_hash: newSessionHash,
+            user_id: user.id,
+            expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000
+          },
+          now: Date.now()
+        });
+        safeStorageSet(LOCAL_SESSION_KEY, newSessionHash);
+        return { user: toClientPublicUser(user) };
+      }
+
+      if (url === '/api/auth/google' && method === 'POST') {
+        const name = typeof body.name === 'string' ? body.name.trim() : '';
+        const identity = normalizeClientIdentifier(body.email);
+        const education = body.education || 'SMA';
+        if (!name || !identity || !identity.email) throw new Error('Data akun Google tidak valid.');
+
+        let user = await callDirectAppsScript('findUserByIdentifier', { identity });
+        const isNewUser = !user;
+        if (!user) {
+          user = await callDirectAppsScript('createUser', {
+            user: {
+              id: (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : ('usr-' + Date.now()),
+              name,
+              email: identity.email,
+              phone: null,
+              password_hash: 'google-oauth',
+              education,
+              level: 'Pemula',
+              reminder_time: '19:00',
+              mic_permission: 0,
+              privacy_agreed: 0,
+              parental_agreed: 0,
+              onboarding_complete: 0,
+              streak: 3,
+              new_words: 4,
+              weekly_progress: 65,
+              google_linked: 1,
+              google_email: identity.email,
+              google_sub: '',
+              created_at: Date.now()
+            }
+          });
+        } else if (!Number(user.google_linked)) {
+          user = await callDirectAppsScript('updateUser', {
+            id: user.id,
+            updates: { google_linked: 1, google_email: identity.email }
+          });
+        }
+        const newSessionHash = await sha256Hex(user.id + '-' + Date.now() + '-' + Math.random());
+        await callDirectAppsScript('createSession', {
+          session: {
+            session_hash: newSessionHash,
+            user_id: user.id,
+            expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000
+          },
+          now: Date.now()
+        });
+        safeStorageSet(LOCAL_SESSION_KEY, newSessionHash);
+        return { user: toClientPublicUser(user), isNewUser };
+      }
+
+      if (url === '/api/auth/profile' && method === 'PUT') {
+        if (!sessionHash) throw new Error('Sesi tidak ditemukan. Silakan masuk kembali.');
+        const current = await callDirectAppsScript('findSessionUser', { sessionHash, now: Date.now() });
+        if (!current) throw new Error('Sesi sudah berakhir. Silakan masuk kembali.');
+
+        const updates = {};
+        if (body.education) updates.education = body.education;
+        if (body.level) updates.level = body.level;
+        if (body.reminderTime) updates.reminder_time = body.reminderTime;
+        if (typeof body.micPermission === 'boolean') updates.mic_permission = Number(body.micPermission);
+        if (typeof body.privacyAgreed === 'boolean') updates.privacy_agreed = Number(body.privacyAgreed);
+        if (typeof body.parentalAgreed === 'boolean') updates.parental_agreed = Number(body.parentalAgreed);
+        if (typeof body.onboardingComplete === 'boolean') updates.onboarding_complete = Number(body.onboardingComplete);
+
+        const updated = await callDirectAppsScript('updateUser', { id: current.id, updates });
+        return { user: toClientPublicUser(updated || { ...current, ...updates }) };
+      }
+
+      if (url === '/api/auth/forgot-password' && method === 'POST') {
+        const identity = normalizeClientIdentifier(body.identifier);
+        if (!identity) throw new Error('Masukkan email atau nomor HP yang valid.');
+        await callDirectAppsScript('findUserByIdentifier', { identity });
+        return {
+          success: true,
+          message: 'Jika kontak terdaftar, tautan atur ulang kata sandi telah dikirim.'
+        };
+      }
+
+      if (url === '/api/auth/logout' && method === 'POST') {
+        if (sessionHash) {
+          await callDirectAppsScript('deleteSession', { sessionHash });
+          safeStorageRemove(LOCAL_SESSION_KEY);
+        }
+        return { success: true };
+      }
+
+      throw new Error('Endpoint tidak ditemukan.');
+    }
+
     async function apiRequest(url, options = {}) {
+      if (window.location.protocol === 'file:') {
+        return fallbackAppsScriptApi(url, options);
+      }
+
       const headers = { ...(options.headers || {}) };
       if (options.body) headers['Content-Type'] = 'application/json';
-      const response = await fetch(url, {
-        ...options,
-        headers,
-        credentials: 'same-origin'
-      });
-      const result = await response.json();
+
+      let response;
+      try {
+        response = await fetch(url, {
+          ...options,
+          headers,
+          credentials: 'same-origin'
+        });
+      } catch {
+        return fallbackAppsScriptApi(url, options);
+      }
+
+      const rawText = await response.text();
+      let result = null;
+      if (rawText && rawText.trim().length > 0) {
+        try {
+          result = JSON.parse(rawText);
+        } catch {
+          result = null;
+        }
+      }
+
+      // Jika dibuka di Live Server / static server (404/405 atau respons kosong tanpa JSON),
+      // otomatis alihkan ke Google Apps Script langsung agar tidak pernah gagal parse JSON
+      if (!result && (response.status === 404 || response.status === 405 || !rawText.trim())) {
+        return fallbackAppsScriptApi(url, options);
+      }
+
       if (!response.ok) {
-        const error = new Error(result.error || 'Permintaan ke server gagal.');
+        const error = new Error((result && result.error) || 'Permintaan ke server gagal.');
         error.status = response.status;
         throw error;
       }
-      return result;
+
+      return result || {};
     }
 
     function applyAuthenticatedUser(user) {
@@ -813,9 +1465,9 @@
         ...state.user,
         ...user,
         email: user.email || user.phone || '',
-        provider: 'email',
-        googleLinked: false,
-        googleEmail: ''
+        provider: user.provider || (user.googleLinked ? 'google' : 'email'),
+        googleLinked: Boolean(user.googleLinked),
+        googleEmail: user.googleEmail || ''
       };
       state.accounts = [state.user];
     }
@@ -829,6 +1481,9 @@
         privacyAgreed: state.user.privacyAgreed,
         parentalAgreed: state.user.parentalAgreed,
         onboardingComplete: state.user.onboardingComplete,
+        streak: state.user.streak,
+        newWords: state.user.newWords,
+        weeklyProgress: state.user.weeklyProgress,
         ...overrides
       };
       const result = await apiRequest('/api/auth/profile', {
@@ -854,10 +1509,10 @@
               <p class="text-xs text-slate-500 mt-1">Lanjutkan progres latihan bicaramu hari ini</p>
             </div>
 
-            <form onsubmit="handleLogin(event)" autocomplete="on" class="space-y-4">
+            <form onsubmit="handleLogin(event)" autocomplete="off" class="space-y-4">
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1.5">Email atau Nomor HP</label>
-                <input id="login-identifier" name="username" type="text" autocomplete="username" placeholder="Email atau Nomor HP" required
+                <input id="login-identifier" name="speakup_identifier" type="text" value="" autocomplete="off" placeholder="Email atau Nomor HP" required
                   class="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-sm transition-all" />
               </div>
               <div>
@@ -867,7 +1522,7 @@
                     Lupa kata sandi?
                   </button>
                 </div>
-                <input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Kata sandi" required
+                <input id="login-password" name="speakup_password" type="password" value="" autocomplete="new-password" placeholder="Kata sandi" required
                   class="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-sm transition-all" />
               </div>
               <button type="submit" class="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 active:scale-[0.99] text-white font-bold text-sm shadow-md shadow-brand-600/20 transition-all">
@@ -935,12 +1590,28 @@
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                 </svg>
               </div>
-              <h2 class="font-display text-2xl font-extrabold text-slate-900">Lupa Sandi</h2>
-              <p class="text-sm text-slate-600 mt-2 leading-relaxed">
-                Reset kata sandi belum tersedia karena layanan email dan SMS belum dikonfigurasi.
+              <h2 class="font-display text-2xl font-extrabold text-slate-900">Lupa sandi</h2>
+              <p class="text-sm text-slate-600 mt-1.5 leading-relaxed">
+                Kami kirim tautan atur ulang ke kontakmu.
               </p>
             </div>
 
+            <form onsubmit="handleForgotPassword(event)" class="space-y-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Email atau nomor HP</label>
+                <input id="forgot-identifier" type="text" value="${escapeHtml(state.forgotSentTo)}" placeholder="Email atau nomor HP" required
+                  class="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-brand-500 outline-none text-sm transition-all" />
+              </div>
+              <button type="submit" class="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-md shadow-brand-600/20 transition-all">
+                Kirim tautan
+              </button>
+            </form>
+
+            ${state.forgotSentTo ? `
+              <div class="mt-4 p-3.5 rounded-2xl bg-mint-50 border border-mint-200 text-xs text-mint-800 leading-relaxed">
+                Tautan atur ulang kata sandi telah dikirim ke <strong>${escapeHtml(state.forgotSentTo)}</strong>.
+              </div>
+            ` : ''}
           </div>
 
           <div class="pb-4 text-center">
@@ -950,6 +1621,71 @@
           </div>
         </div>
       `;
+    }
+
+    async function handleForgotPassword(e) {
+      e.preventDefault();
+      const identifier = document.getElementById('forgot-identifier').value.trim();
+      try {
+        const result = await apiRequest('/api/auth/forgot-password', {
+          method: 'POST',
+          body: JSON.stringify({ identifier })
+        });
+        state.forgotSentTo = identifier;
+        state.resetLink = result.resetUrl || '';
+        showToast(result.message || 'Tautan atur ulang sandi dikirim.', 'success');
+        render();
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    function renderResetScreen() {
+      return `
+        <div class="screen-enter min-h-full flex flex-col justify-between p-6 bg-white">
+          <div class="pt-6">
+            <div class="w-14 h-14 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mb-4">
+              <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
+            </div>
+            <h2 class="font-display text-2xl font-extrabold text-slate-900">Atur ulang sandi</h2>
+            <p class="text-sm text-slate-600 mt-1.5">Buat kata sandi baru untuk akun SpeakUp.</p>
+            <form onsubmit="handleResetPassword(event)" class="space-y-4 mt-6">
+              <div>
+                <label for="reset-password" class="block text-xs font-semibold text-slate-700 mb-1.5">Kata sandi baru</label>
+                <input id="reset-password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required placeholder="Minimal 8 karakter" class="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-brand-500 outline-none text-sm" />
+              </div>
+              <div>
+                <label for="reset-password-confirm" class="block text-xs font-semibold text-slate-700 mb-1.5">Ulangi kata sandi</label>
+                <input id="reset-password-confirm" type="password" minlength="8" maxlength="128" autocomplete="new-password" required placeholder="Ulangi kata sandi baru" class="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-brand-500 outline-none text-sm" />
+              </div>
+              <button type="submit" class="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-md shadow-brand-600/20">Simpan kata sandi</button>
+            </form>
+          </div>
+          <button onclick="navigate('login')" class="pb-4 text-xs font-semibold text-slate-500 hover:text-brand-600">Kembali ke halaman Masuk</button>
+        </div>
+      `;
+    }
+
+    async function handleResetPassword(e) {
+      e.preventDefault();
+      const password = document.getElementById('reset-password').value;
+      const confirmation = document.getElementById('reset-password-confirm').value;
+      if (password !== confirmation) {
+        showToast('Kata sandi dan ulangannya harus sama.', 'warning');
+        return;
+      }
+      try {
+        const result = await apiRequest('/api/auth/reset-password', {
+          method: 'POST',
+          body: JSON.stringify({ token: state.resetToken, password })
+        });
+        showToast(result.message || 'Kata sandi berhasil diperbarui.', 'success');
+        state.resetToken = '';
+        if (window.history && window.history.replaceState) window.history.replaceState({}, document.title, window.location.pathname);
+        navigate('login');
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
     }
 
     // =========================================================================
@@ -966,7 +1702,8 @@
     }
 
     function renderRegisterScreen() {
-      const jenjangList = ['SMA', 'SMK', 'SMP', 'Umum'];
+      const jenjangList = ['SMA', 'SMK'];
+      const displayName = state.user.name === 'Pelajar' ? '' : state.user.name;
       return `
         <div class="screen-enter min-h-full flex flex-col justify-between p-6 bg-white">
           <div class="pt-3">
@@ -981,36 +1718,36 @@
 
             ${renderStepper(1)}
 
-            <h2 class="font-display text-2xl font-extrabold text-slate-900">Buat Akun</h2>
-            <p class="text-xs text-slate-500 mt-1 mb-5">Lengkapi data dirimu untuk memulai perjalanan speaking</p>
+            <h2 class="font-display text-2xl font-extrabold text-slate-900">Buat akun</h2>
+            <p class="text-xs text-slate-500 mt-1 mb-5">Nama, email, sandi, dan jenjang SMA atau SMK</p>
 
-            <form onsubmit="handleRegister(event)" autocomplete="on" class="space-y-4">
+            <form onsubmit="handleRegister(event)" autocomplete="off" class="space-y-4">
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1.5">Nama lengkap</label>
-                <input id="reg-name" type="text" value="${state.user.name}" placeholder="Contoh: Sania" required
+                <input id="reg-name" type="text" value="${escapeHtml(displayName)}" autocomplete="off" placeholder="Masukkan nama lengkap" required
                   class="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-brand-500 outline-none text-sm" />
               </div>
 
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Email atau Nomor HP</label>
-                <input id="reg-identifier" name="username" type="text" autocomplete="username" value="${state.user.email}" placeholder="nama@email.com atau 0812..." required
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Email atau nomor HP</label>
+                <input id="reg-identifier" name="reg_identifier" type="text" autocomplete="off" value="${escapeHtml(state.user.id ? state.user.email : '')}" placeholder="Email atau nomor HP" required
                   class="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-brand-500 outline-none text-sm" />
               </div>
 
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1.5">Kata sandi</label>
-                <input id="reg-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" placeholder="Minimal 8 karakter" required
+                <input id="reg-password" name="reg_password" type="password" value="" autocomplete="new-password" minlength="8" maxlength="128" placeholder="Minimal 8 karakter" required
                   class="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-brand-500 outline-none text-sm" />
               </div>
 
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-2">Jenjang</label>
-                <div class="grid grid-cols-2 gap-2.5">
+                <div id="education-options" class="grid grid-cols-2 gap-2.5">
                   ${jenjangList.map(j => `
-                    <button type="button" onclick="selectEducation('${j}')"
+                    <button type="button" data-education="${j}" onclick="selectEducation('${j}')"
                       class="py-3 px-4 rounded-2xl border text-sm font-semibold transition-all flex items-center justify-between ${state.user.education === j ? 'border-brand-600 bg-brand-50 text-brand-700 shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}">
                       <span>${j}</span>
-                      <span class="w-4 h-4 rounded-full border flex items-center justify-center ${state.user.education === j ? 'border-brand-600 bg-brand-600' : 'border-slate-300'}">
+                      <span data-education-indicator class="w-4 h-4 rounded-full border flex items-center justify-center ${state.user.education === j ? 'border-brand-600 bg-brand-600' : 'border-slate-300'}">
                         ${state.user.education === j ? '<span class="w-1.5 h-1.5 rounded-full bg-white"></span>' : ''}
                       </span>
                     </button>
@@ -1031,7 +1768,16 @@
 
     function selectEducation(edu) {
       state.user.education = edu;
-      render();
+      const options = document.getElementById('education-options');
+      if (options) {
+        options.querySelectorAll('[data-education]').forEach(button => {
+          const active = button.dataset.education === edu;
+          button.className = `py-3 px-4 rounded-2xl border text-sm font-semibold transition-all flex items-center justify-between ${active ? 'border-brand-600 bg-brand-50 text-brand-700 shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`;
+          const indicator = button.querySelector('[data-education-indicator]');
+          if (indicator) indicator.innerHTML = active ? '<span class="w-1.5 h-1.5 rounded-full bg-white"></span>' : '';
+          if (indicator) indicator.className = `w-4 h-4 rounded-full border flex items-center justify-center ${active ? 'border-brand-600 bg-brand-600' : 'border-slate-300'}`;
+        });
+      }
     }
 
     async function handleRegister(e) {
@@ -1062,7 +1808,7 @@
         <div class="screen-enter min-h-full flex flex-col justify-between p-6 bg-white">
           <div class="pt-3">
             <div class="flex items-center justify-between mb-3">
-              <button onclick="navigate('register')" class="p-2 -ml-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+              <button onclick="handleLogout()" class="p-2 -ml-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100" title="Keluar">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
@@ -1072,8 +1818,8 @@
 
             ${renderStepper(2)}
 
-            <h2 class="font-display text-2xl font-extrabold text-slate-900">Persetujuan & Izin</h2>
-            <p class="text-xs text-slate-500 mt-1 mb-5">Keamanan data dan izin mikrofon untuk latihan suaramu</p>
+            <h2 class="font-display text-2xl font-extrabold text-slate-900">Persetujuan</h2>
+            <p class="text-xs text-slate-500 mt-1 mb-5">Privasi data suara dan izin orang tua atau sekolah (di bawah 18 tahun)</p>
 
             <div class="space-y-3.5">
               <!-- Checkbox 1: Kebijakan Privasi -->
@@ -1081,8 +1827,8 @@
                 <input type="checkbox" ${state.user.privacyAgreed ? 'checked' : ''} onchange="toggleConsent('privacyAgreed', this.checked)"
                   class="mt-0.5 w-5 h-5 rounded-lg text-brand-600 focus:ring-brand-500 border-slate-300" />
                 <div class="text-xs leading-relaxed text-slate-700">
-                  <span class="font-bold text-slate-900 block mb-0.5">Kebijakan Privasi Data</span>
-                  Saya setuju dengan kebijakan privasi data SpeakUp. Rekaman suara hanya diproses untuk latihan pelafalan.
+                  <span class="font-bold text-slate-900 block mb-0.5">Saya setuju dengan kebijakan privasi data suara</span>
+                  Rekaman suara hanya diproses untuk latihan pelafalan dan koreksi langsung.
                 </div>
               </label>
 
@@ -1091,39 +1837,26 @@
                 <input type="checkbox" ${state.user.parentalAgreed ? 'checked' : ''} onchange="toggleConsent('parentalAgreed', this.checked)"
                   class="mt-0.5 w-5 h-5 rounded-lg text-brand-600 focus:ring-brand-500 border-slate-300" />
                 <div class="text-xs leading-relaxed text-slate-700">
-                  <span class="font-bold text-slate-900 block mb-0.5">Persetujuan Orang Tua atau Sekolah</span>
-                  Saya telah mendapat persetujuan orang tua atau guru sekolah (wajib untuk pelajar di bawah 18 tahun).
+                  <span class="font-bold text-slate-900 block mb-0.5">Persetujuan orang tua atau sekolah (di bawah 18 tahun)</span>
+                  Saya telah mendapat izin orang tua atau sekolah untuk mengikuti latihan speaking.
                 </div>
               </label>
 
-              <!-- Kartu Izin Mikrofon -->
-              <div class="p-4 rounded-2xl border ${state.user.micPermission ? 'border-mint-500 bg-mint-50/50' : 'border-slate-200 bg-white'} transition-all">
-                <div class="flex items-center justify-between gap-3">
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl ${state.user.micPermission ? 'bg-mint-500 text-white' : 'bg-brand-100 text-brand-600'} flex items-center justify-center shrink-0">
-                      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p class="text-xs font-bold text-slate-900">Izinkan akses mikrofon untuk latihan</p>
-                      <p class="text-[11px] text-slate-500 mt-0.5">
-                        ${state.user.micPermission ? 'Mikrofon siap digunakan!' : 'Diperlukan untuk merekam voice note'}
-                      </p>
-                    </div>
-                  </div>
-                  <button type="button" onclick="requestMicAccess()"
-                    class="px-3 py-2 rounded-xl text-xs font-bold shrink-0 transition-all ${state.user.micPermission ? 'bg-mint-600 text-white' : 'bg-brand-600 text-white hover:bg-brand-700'}">
-                    ${state.user.micPermission ? 'Aktif ✓' : 'Izinkan'}
-                  </button>
+              <!-- Checkbox 3: Izin Mikrofon -->
+              <label class="flex items-start gap-3 p-4 rounded-2xl border ${state.user.micPermission ? 'border-mint-500 bg-mint-50/50' : 'border-slate-200 bg-slate-50/50'} cursor-pointer transition-all">
+                <input type="checkbox" ${state.user.micPermission ? 'checked' : ''} onchange="handleMicCheckbox(this.checked)"
+                  class="mt-0.5 w-5 h-5 rounded-lg text-brand-600 focus:ring-brand-500 border-slate-300" />
+                <div class="text-xs leading-relaxed text-slate-700 flex-1">
+                  <span class="font-bold text-slate-900 block mb-0.5">Izinkan akses mikrofon untuk latihan</span>
+                  ${state.user.micPermission ? 'Mikrofon siap digunakan untuk merekam voice note.' : 'Ketuk untuk mengaktifkan mikrofon saat latihan speaking.'}
                 </div>
-              </div>
+              </label>
             </div>
           </div>
 
           <div class="pt-6 pb-2">
             <button onclick="handleConsentSubmit()" class="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-md shadow-brand-600/20 transition-all">
-              Setuju dan Lanjut
+              Setuju dan lanjut
             </button>
           </div>
         </div>
@@ -1133,6 +1866,15 @@
     function toggleConsent(field, val) {
       state.user[field] = val;
       render();
+    }
+
+    async function handleMicCheckbox(checked) {
+      if (checked) {
+        await requestMicAccess();
+      } else {
+        state.user.micPermission = false;
+        render();
+      }
     }
 
     async function requestMicAccess() {
@@ -1145,20 +1887,16 @@
         showToast('Akses mikrofon diizinkan!', 'success');
         render();
       } catch (err) {
-        // Tetap izinkan mode simulasi jika di lingkungan sandbox/tanpa mic fisik
-        state.user.micPermission = true;
-        showToast('Mode mikrofon aktif (siap untuk latihan).', 'info');
+        state.user.micPermission = false;
+        showToast('Akses mikrofon ditolak. Kamu tetap bisa memakai demo hasil latihan.', 'warning');
         render();
       }
     }
 
     async function handleConsentSubmit() {
-      if (!state.user.privacyAgreed) {
-        showToast('Silakan centang persetujuan kebijakan privasi terlebih dahulu.', 'warning');
+      if (!state.user.privacyAgreed || !state.user.parentalAgreed) {
+        showToast('Silakan centang persetujuan kebijakan privasi data suara dan persetujuan orang tua/sekolah.', 'warning');
         return;
-      }
-      if (!state.user.micPermission) {
-        state.user.micPermission = true;
       }
       try {
         await saveAuthenticatedProfile();
@@ -1267,13 +2005,15 @@
           <!-- Header: Halo, Sania + Streak Badge -->
           <header class="flex items-center justify-between pt-1">
             <div>
-              <p class="text-xs font-medium text-slate-500">Selamat datang kembali 👋</p>
-              <h1 class="font-display text-2xl font-extrabold text-slate-900">Halo, ${state.user.name}</h1>
+              <p class="text-xs font-medium text-slate-500">Selamat datang kembali</p>
+              <h1 class="font-display text-2xl font-extrabold text-slate-900">Halo, ${escapeHtml(state.user.name)}</h1>
             </div>
             <div class="flex items-center gap-2">
               <div class="px-3.5 py-2 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-center gap-1.5 shadow-sm">
-                <span class="text-base">🔥</span>
-                <span class="text-xs font-extrabold text-amber-700">Streak ${state.user.streak} hr</span>
+                <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <span class="text-xs font-extrabold text-amber-700">Streak ${state.user.streak} hari</span>
               </div>
               <button onclick="navigate('closing')" title="Selesai / Keluar Sesi" class="p-2 rounded-2xl bg-white border border-slate-200 text-slate-500 hover:text-rose-600 hover:border-rose-200 transition-colors">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1291,9 +2031,9 @@
             <div class="relative z-10">
               <div class="flex items-center justify-between">
                 <span class="px-2.5 py-1 rounded-full bg-white/20 text-[11px] font-semibold backdrop-blur-sm">
-                  Sesi hari ini • ${state.user.level}
+                  Sesi hari ini - ${state.user.level}
                 </span>
-                <span class="text-xs text-brand-100 font-medium">~2 menit</span>
+                <span class="text-xs text-brand-100 font-medium">2 menit</span>
               </div>
 
               <h2 class="font-display text-xl font-extrabold mt-3 mb-1">
@@ -1319,7 +2059,11 @@
           <section class="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm">
             <div class="flex items-center justify-between mb-2">
               <div class="flex items-center gap-2">
-                <span class="w-7 h-7 rounded-xl bg-mint-100 text-mint-600 flex items-center justify-center text-sm">🎯</span>
+                <span class="w-7 h-7 rounded-xl bg-mint-100 text-mint-600 flex items-center justify-center">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </span>
                 <h3 class="text-sm font-bold text-slate-800">Tantangan mingguan</h3>
               </div>
               <span class="text-xs font-extrabold text-mint-600">${state.user.weeklyProgress}%</span>
@@ -1338,8 +2082,10 @@
 
             <button onclick="navigate('quiz')" class="w-full bg-white hover:bg-slate-50 active:scale-[0.99] p-4 rounded-3xl border border-slate-200/80 shadow-sm flex items-center justify-between transition-all text-left">
               <div class="flex items-center gap-3.5">
-                <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl shrink-0">
-                  ⚡
+                <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
                 </div>
                 <div>
                   <h4 class="font-display text-sm font-bold text-slate-900">Kuis cepat</h4>
@@ -1353,11 +2099,13 @@
 
             <button onclick="openTranslateWithSample()" class="w-full bg-white hover:bg-slate-50 active:scale-[0.99] p-4 rounded-3xl border border-slate-200/80 shadow-sm flex items-center justify-between transition-all text-left">
               <div class="flex items-center gap-3.5">
-                <div class="w-12 h-12 rounded-2xl bg-brand-100 text-brand-600 flex items-center justify-center text-xl shrink-0">
-                  🔤
+                <div class="w-12 h-12 rounded-2xl bg-brand-100 text-brand-600 flex items-center justify-center shrink-0">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                  </svg>
                 </div>
                 <div>
-                  <h4 class="font-display text-sm font-bold text-slate-900">Terjemahan & Cara baca</h4>
+                  <h4 class="font-display text-sm font-bold text-slate-900">Terjemahan dan cara baca</h4>
                   <p class="text-xs text-slate-500 mt-0.5">Cek arti, pelafalan fonetik, dan penjelasan</p>
                 </div>
               </div>
@@ -1376,6 +2124,7 @@
     }
 
     function openTranslateWithSample() {
+      state.translateOrigin = 'home';
       const topic = state.topics[state.selectedTopicIndex];
       state.translation.inputText = topic.samplePhrase;
       state.translation.meaning = topic.sampleMeaning;
@@ -1415,7 +2164,7 @@
             <div class="bg-white rounded-3xl p-5 border-2 border-brand-100 shadow-sm relative">
               <div class="flex items-center justify-between mb-2">
                 <span class="text-xs font-bold uppercase tracking-wider text-brand-600">Ucapkan :</span>
-                <button onclick="speakEnglish('${topic.prompt.replace(/'/g, "\\'")}')"
+                <button onclick="speakTopicPrompt()"
                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold transition-colors">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
@@ -1477,8 +2226,12 @@
     }
 
     function startRecording() {
+      if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
+        showToast('Browser tidak mendukung pengenalan suara. Gunakan demo hasil latihan.', 'warning');
+      }
       state.recording.isRecording = true;
       state.recording.seconds = 0;
+      state.recording._liveSpeech = '';
       let capturedSpeech = '';
 
       // Coba gunakan Web Speech API jika tersedia di browser
@@ -1580,19 +2333,19 @@
           { text: 'My', error: false },
           { text: 'name', error: false },
           { text: 'is', error: false },
-          { text: 'Sania,', error: false },
+          { text: 'Sania', error: false },
           { text: 'and', error: false },
           { text: 'I', error: false },
           { text: 'studi', error: true, expected: 'study' },
           { text: 'at', error: false },
           { text: 'SMAN', error: false },
           { text: '1', error: false },
-          { text: 'Kejayan', error: false }
+          { text: 'Kejayan.', error: false }
         ];
         state.recording.totalScore = 82;
         state.recording.grammarScore = 90;
         state.recording.pronunciationScore = 75;
-        state.recording.feedback = "Hampir tepat! Ucapkan study seperti *stadi*";
+        state.recording.feedback = 'Hampir tepat! Ucapkan study seperti "stadi".';
       } else {
         const topic = state.topics[state.selectedTopicIndex];
         const words = topic.prompt.split(' ').map((w, i) => ({
@@ -1610,12 +2363,27 @@
       navigate('result');
     }
 
+    let progressSaveTimer = null;
+
+    function persistProgress() {
+      clearTimeout(progressSaveTimer);
+      if (!state.user.id) return;
+      progressSaveTimer = setTimeout(async () => {
+        try {
+          await saveAuthenticatedProfile();
+        } catch (error) {
+          console.warn('Progres belum tersimpan:', error.message);
+        }
+      }, 350);
+    }
+
     function markSessionProgress() {
       if (!state.recording.sessionCompleted) {
         state.recording.sessionCompleted = true;
-        state.user.streak = 4;
-        state.user.newWords = 6;
-        state.user.weeklyProgress = 100;
+        state.user.streak = Math.max(0, Number(state.user.streak) || 0) + 1;
+        state.user.newWords = Math.max(0, Number(state.user.newWords) || 0) + 2;
+        state.user.weeklyProgress = Math.min(100, (Number(state.user.weeklyProgress) || 0) + 35);
+        persistProgress();
       }
     }
 
@@ -1676,7 +2444,7 @@
             <!-- Pesan Koreksi Langsung -->
             <div class="bg-rose-50/70 border border-rose-200/80 rounded-2xl p-4 text-center">
               <p class="text-sm font-bold text-slate-800">
-                ${r.feedback.replace(/\*([^*]+)\*/g, '<span class="text-rose-600 font-extrabold">*$1*</span>')}
+                ${escapeHtml(r.feedback)}
               </p>
             </div>
           </div>
@@ -1695,6 +2463,7 @@
     }
 
     function openTranslateFromResult() {
+      state.translateOrigin = 'result';
       const topic = state.topics[state.selectedTopicIndex];
       state.translation.inputText = topic.samplePhrase;
       state.translation.meaning = topic.sampleMeaning;
@@ -1713,7 +2482,7 @@
           <div class="space-y-4">
             <!-- Header -->
             <div class="flex items-center justify-between">
-              <button onclick="navigate('result')" class="p-2 -ml-2 rounded-xl text-slate-500 hover:bg-slate-200/60">
+              <button onclick="navigate(state.translateOrigin === 'result' ? 'result' : 'home')" class="p-2 -ml-2 rounded-xl text-slate-500 hover:bg-slate-200/60">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
@@ -1726,7 +2495,7 @@
             <div class="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm">
               <label class="block text-[11px] font-semibold text-slate-400 mb-1">Frasa / Kalimat Bahasa Inggris</label>
               <div class="flex items-center gap-2">
-                <input id="translate-input" type="text" value="${t.inputText}"
+                <input id="translate-input" type="text" value="${escapeHtml(t.inputText)}" maxlength="300" aria-label="Frasa bahasa Inggris" onkeydown="if (event.key === 'Enter') analyzeCustomPhrase()"
                   class="flex-1 font-display text-base font-bold text-slate-900 bg-transparent outline-none" />
                 <button onclick="analyzeCustomPhrase()" ${t.isLoading ? 'disabled' : ''}
                   class="px-3 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shrink-0 transition-all">
@@ -1738,16 +2507,16 @@
             <!-- Kartu 1: Arti -->
             <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm">
               <span class="text-xs font-bold text-brand-600 block mb-1">Arti</span>
-              <p class="text-base font-bold text-slate-900">${t.meaning}</p>
+              <p class="text-base font-bold text-slate-900">${escapeHtml(t.meaning)}</p>
             </div>
 
             <!-- Kartu 2: Cara Baca -->
             <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center justify-between">
               <div>
                 <span class="text-xs font-bold text-mint-600 block mb-1">Cara baca</span>
-                <p class="text-base font-extrabold text-slate-800 tracking-wide">${t.phonetic}</p>
+                <p class="text-base font-extrabold text-slate-800 tracking-wide">${escapeHtml(t.phonetic)}</p>
               </div>
-              <button onclick="speakEnglish('${t.inputText.replace(/'/g, "\\'")}')"
+              <button onclick="speakTranslation()"
                 class="w-10 h-10 rounded-xl bg-mint-50 hover:bg-mint-100 text-mint-600 flex items-center justify-center transition-colors" title="Dengarkan cara baca">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
@@ -1758,18 +2527,24 @@
             <!-- Kartu 3: Penjelasan -->
             <div class="bg-brand-50/60 rounded-2xl p-4 border border-brand-100">
               <span class="text-xs font-bold text-brand-700 block mb-1">Penjelasan</span>
-              <p class="text-xs text-slate-700 leading-relaxed">${t.explanation}</p>
+              <p class="text-xs text-slate-700 leading-relaxed">${escapeHtml(t.explanation)}</p>
             </div>
           </div>
 
           <!-- Tombol Ulangi Rekaman & Selesai Sesi -->
           <div class="pt-5 space-y-2.5">
-            <button onclick="navigate('practice')" class="w-full py-3.5 rounded-2xl bg-white border-2 border-brand-600 text-brand-700 hover:bg-brand-50 font-bold text-sm transition-all">
-              Ulangi rekaman
-            </button>
-            <button onclick="navigate('closing')" class="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-md shadow-brand-600/20 transition-all">
-              Lanjut Ringkasan Sesi
-            </button>
+            ${state.translateOrigin === 'result' ? `
+              <button onclick="navigate('practice')" class="w-full py-3.5 rounded-2xl bg-white border-2 border-brand-600 text-brand-700 hover:bg-brand-50 font-bold text-sm transition-all">
+                Ulangi rekaman
+              </button>
+              <button onclick="navigate('closing')" class="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-md shadow-brand-600/20 transition-all">
+                Lanjut Ringkasan Sesi
+              </button>
+            ` : `
+              <button onclick="navigate('home')" class="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-md shadow-brand-600/20 transition-all">
+                Kembali ke Beranda
+              </button>
+            `}
           </div>
         </div>
       `;
@@ -1779,64 +2554,31 @@
       const inputEl = document.getElementById('translate-input');
       const phrase = inputEl ? inputEl.value.trim() : '';
       if (!phrase) return;
-
-      state.translation.inputText = phrase;
-
-      // Cek contoh bawaan sketsa
-      if (phrase.toLowerCase() === 'i study at school') {
-        state.translation.meaning = 'Aku belajar di sekolah';
-        state.translation.phonetic = 'ai stadi at skul';
-        state.translation.explanation = 'Study dipakai untuk kegiatan belajar. Pakai at sebelum nama tempat.';
-        render();
+      if (phrase.length > 300) {
+        showToast('Frasa maksimal 300 karakter.', 'warning');
         return;
       }
 
-      // Gunakan Gemini API untuk frasa kustom siswa
+      state.translation.inputText = phrase;
       state.translation.isLoading = true;
       render();
-
       try {
-        const prompt = `Analisis kalimat bahasa Inggris berikut untuk pelajar SMA di Indonesia: "${phrase}".
-Berikan respons JSON dengan kunci:
-- meaning: terjemahan bahasa Indonesia yang alami
-- phonetic: cara baca fonetik sederhana ejaan Indonesia (contoh: "ai stadi at skul")
-- explanation: penjelasan tata bahasa singkat (maksimal 2 kalimat bahasa Indonesia)`;
-
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`, {
+        const result = await apiRequest('/api/translate', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              responseMimeType: 'application/json',
-              responseSchema: {
-                type: 'OBJECT',
-                properties: {
-                  meaning: { type: 'STRING' },
-                  phonetic: { type: 'STRING' },
-                  explanation: { type: 'STRING' }
-                },
-                required: ['meaning', 'phonetic', 'explanation']
-              }
-            }
-          })
+          body: JSON.stringify({ phrase })
         });
-
-        const data = await response.json();
-        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (rawText) {
-          const parsed = JSON.parse(rawText);
-          state.translation.meaning = parsed.meaning;
-          state.translation.phonetic = parsed.phonetic;
-          state.translation.explanation = parsed.explanation;
-          state.user.newWords += 1;
-        } else {
-          throw new Error('Empty AI response');
-        }
-      } catch (err) {
-        state.translation.meaning = `Terjemahan untuk "${phrase}"`;
-        state.translation.phonetic = phrase.toLowerCase();
-        state.translation.explanation = 'Perhatikan jeda antar kata dan tekanan pada suku kata utama saat mengucapkan kalimat ini.';
+        state.translation.meaning = result.meaning;
+        state.translation.phonetic = result.phonetic;
+        state.translation.explanation = result.explanation;
+        state.user.newWords += 1;
+        persistProgress();
+      } catch (error) {
+        // Offline fallback tetap memberi hasil berguna tanpa API key.
+        const local = analyzePhraseLocally(phrase);
+        state.translation.meaning = local.meaning;
+        state.translation.phonetic = local.phonetic;
+        state.translation.explanation = local.explanation;
+        showToast('Layanan AI tidak tersedia. Menggunakan kamus offline.', 'info');
       } finally {
         state.translation.isLoading = false;
         render();
@@ -1849,12 +2591,16 @@ Berikan respons JSON dengan kunci:
     function renderQuizScreen() {
       const qState = state.quiz;
       const isFinished = qState.currentIndex >= qState.questions.length;
+      const quizContainer = document.getElementById('screen-container');
+      if (quizContainer && state.currentScreen === 'quiz' && qState.answered === null) quizContainer.scrollTop = 0;
 
       if (isFinished) {
         return `
           <div class="screen-enter min-h-full flex flex-col items-center justify-center p-6 text-center">
-            <div class="w-20 h-20 rounded-3xl bg-amber-100 text-amber-600 flex items-center justify-center text-4xl mb-4">
-              🏆
+            <div class="w-20 h-20 rounded-3xl bg-amber-100 text-amber-600 flex items-center justify-center mb-4">
+              <svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             </div>
             <h2 class="font-display text-2xl font-extrabold text-slate-900">Kuis Selesai!</h2>
             <p class="text-xs text-slate-500 mt-1 mb-6">Kamu menjawab benar ${qState.score} dari ${qState.questions.length} soal</p>
@@ -1900,7 +2646,7 @@ Berikan respons JSON dengan kunci:
                   <button onclick="answerQuiz(${idx})" ${qState.answered !== null ? 'disabled' : ''}
                     class="w-full p-3.5 rounded-2xl border text-left text-sm font-medium transition-all flex items-center justify-between ${btnClass}">
                     <span>${opt}</span>
-                    ${qState.answered !== null && idx === currentQ.answer ? '<span>✓</span>' : ''}
+                    ${qState.answered !== null && idx === currentQ.answer ? '<span class="text-xs font-bold">Benar</span>' : ''}
                   </button>
                 `;
               }).join('')}
@@ -1925,6 +2671,7 @@ Berikan respons JSON dengan kunci:
       if (idx === state.quiz.questions[state.quiz.currentIndex].answer) {
         state.quiz.score += 1;
         state.user.newWords += 1;
+        persistProgress();
       }
       render();
     }
@@ -1954,12 +2701,12 @@ Berikan respons JSON dengan kunci:
           </div>
 
           <div class="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm flex items-center gap-4">
-            <div class="w-15 h-15 w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500 to-mint-500 text-white font-display text-2xl font-extrabold flex items-center justify-center shrink-0">
-              ${state.user.name.charAt(0).toUpperCase()}
+            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500 to-mint-500 text-white font-display text-2xl font-extrabold flex items-center justify-center shrink-0">
+              ${escapeHtml(state.user.name.charAt(0).toUpperCase())}
             </div>
             <div class="min-w-0 flex-1">
-              <h2 class="font-display text-lg font-extrabold text-slate-900 truncate">${state.user.name}</h2>
-              <p class="text-xs text-slate-500 truncate">${state.user.email}</p>
+              <h2 class="font-display text-lg font-extrabold text-slate-900 truncate">${escapeHtml(state.user.name)}</h2>
+              <p class="text-xs text-slate-500 truncate">${escapeHtml(state.user.email)}</p>
               <div class="flex flex-wrap items-center gap-1.5 mt-2">
                 <span class="px-2.5 py-0.5 rounded-full bg-brand-50 text-brand-700 text-[11px] font-bold">${state.user.education}</span>
                 <span class="px-2.5 py-0.5 rounded-full bg-mint-50 text-mint-700 text-[11px] font-bold">Level ${state.user.level}</span>
@@ -1975,13 +2722,13 @@ Berikan respons JSON dengan kunci:
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Status Tautan Akun</span>
               <span class="text-[11px] font-bold ${isGoogle ? 'text-mint-600' : 'text-amber-600'}">
-                ${isGoogle ? '● Akun Google terhubung' : '○ Belum terhubung Google'}
+                ${isGoogle ? 'Akun Google terhubung' : 'Belum terhubung Google'}
               </span>
             </div>
 
             <p class="text-xs text-slate-600 leading-relaxed">
               ${isGoogle
-                ? `Terhubung dengan identitas Google <strong>${state.user.googleEmail || state.user.email}</strong>.`
+                ? `Terhubung dengan identitas Google <strong>${escapeHtml(state.user.googleEmail || state.user.email)}</strong>.`
                 : 'Hubungkan atau ganti akun Google agar progres belajarmu tertaut dengan identitas Google.'}
             </p>
 
@@ -2001,13 +2748,21 @@ Berikan respons JSON dengan kunci:
 
           <div class="grid grid-cols-2 gap-3">
             <div class="bg-white p-4 rounded-3xl border border-slate-200/80 text-center">
-              <span class="text-2xl">🔥</span>
-              <p class="font-display text-xl font-extrabold text-slate-900 mt-1">${state.user.streak} Hari</p>
+              <div class="w-9 h-9 mx-auto rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <p class="font-display text-xl font-extrabold text-slate-900 mt-2">${state.user.streak} Hari</p>
               <p class="text-xs text-slate-500">Streak Aktif</p>
             </div>
             <div class="bg-white p-4 rounded-3xl border border-slate-200/80 text-center">
-              <span class="text-2xl">📚</span>
-              <p class="font-display text-xl font-extrabold text-slate-900 mt-1">${state.user.newWords} Kata</p>
+              <div class="w-9 h-9 mx-auto rounded-xl bg-brand-100 text-brand-600 flex items-center justify-center">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+              </div>
+              <p class="font-display text-xl font-extrabold text-slate-900 mt-2">${state.user.newWords} Kata</p>
               <p class="text-xs text-slate-500">Kosakata Baru</p>
             </div>
           </div>
@@ -2058,12 +2813,21 @@ Berikan respons JSON dengan kunci:
     }
 
     async function updateReminderTime(val) {
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(val)) {
+        showToast('Format waktu pengingat tidak valid.', 'warning');
+        render();
+        return;
+      }
+      const previous = state.user.reminderTime;
       state.user.reminderTime = val;
       try {
         await saveAuthenticatedProfile();
         showToast(`Pengingat harian diatur ke pukul ${val}`, 'success');
+        render();
       } catch (error) {
+        state.user.reminderTime = previous;
         showToast(error.message, 'error');
+        render();
       }
     }
 
@@ -2071,18 +2835,35 @@ Berikan respons JSON dengan kunci:
     // 12. TAHAP 5: MENUTUP APLIKASI (LAYAR PENUTUP / RINGKASAN SESI)
     // =========================================================================
     function renderClosingScreen() {
-      const score = state.recording.totalScore || 82;
-      const streak = state.recording.sessionCompleted ? 4 : state.user.streak;
-      const newWords = state.recording.sessionCompleted ? 6 : state.user.newWords;
+      if (!state.recording.sessionCompleted) {
+        return `
+          <div class="screen-enter min-h-full flex flex-col justify-between p-6 bg-white">
+            <div class="pt-10 text-center">
+              <div class="w-20 h-20 mx-auto rounded-3xl bg-brand-50 text-brand-600 flex items-center justify-center mb-5">
+                <svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </div>
+              <h1 class="font-display text-2xl font-extrabold text-slate-900">Belum ada sesi latihan hari ini</h1>
+              <p class="text-sm text-slate-600 mt-2 leading-relaxed">Mulai satu voice note untuk melihat skor dan ringkasan belajarmu.</p>
+            </div>
+            <div class="pb-4 space-y-2.5">
+              <button onclick="navigate('practice')" class="w-full py-4 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-lg">Mulai latihan</button>
+              <button onclick="navigate('home')" class="w-full py-2.5 rounded-2xl text-xs font-semibold text-slate-500">Kembali ke Beranda</button>
+            </div>
+          </div>
+        `;
+      }
+      const score = state.recording.totalScore;
+      const streak = state.user.streak;
+      const newWords = state.user.newWords;
 
       return `
         <div class="screen-enter min-h-full flex flex-col justify-between p-6 bg-gradient-to-b from-mint-50/70 via-white to-brand-50/50">
           <div class="pt-4 text-center">
             <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-mint-100 text-mint-700 text-xs font-bold mb-3">
-              <span>🎉</span> Hebat, ${state.user.name}!
+              Hebat, ${state.user.name}!
             </div>
             <h1 class="font-display text-2xl font-extrabold text-slate-900">
-              Sesi Selesai!
+              Sesi selesai!
             </h1>
 
             <!-- Tampilan Skor Besar -->
@@ -2102,21 +2883,25 @@ Berikan respons JSON dengan kunci:
 
               <div class="flex items-center justify-between py-2 border-b border-slate-100">
                 <span class="text-xs font-semibold text-slate-500">Streak</span>
-                <span class="font-display text-base font-extrabold text-amber-600">🔥 ${streak} hari</span>
+                <span class="font-display text-base font-extrabold text-amber-600">${streak} hari</span>
               </div>
 
               <div class="flex items-center justify-between py-2">
                 <span class="text-xs font-semibold text-slate-500">Kata baru</span>
-                <span class="font-display text-base font-extrabold text-mint-600">+${newWords} kata</span>
+                <span class="font-display text-base font-extrabold text-mint-600">${newWords} kata</span>
               </div>
             </div>
 
             <!-- Atur Pengingat Besok 19:00 -->
             <div class="mt-4 bg-brand-50/80 border border-brand-100 rounded-2xl p-3.5 flex items-center justify-between">
               <div class="flex items-center gap-2.5 text-left">
-                <span class="text-lg">⏰</span>
+                <div class="w-8 h-8 rounded-xl bg-brand-100 text-brand-600 flex items-center justify-center shrink-0">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
                 <div>
-                  <p class="text-xs font-bold text-slate-800">Pengingat besok ${state.user.reminderTime}</p>
+                  <p class="text-xs font-bold text-slate-800">Pengingat besok: ${state.user.reminderTime}</p>
                   <p class="text-[11px] text-slate-500">Jaga streak belajarmu tetap menyala</p>
                 </div>
               </div>
@@ -2143,42 +2928,58 @@ Berikan respons JSON dengan kunci:
         <div class="screen-enter min-h-full flex flex-col items-center justify-between p-8 bg-gradient-to-b from-brand-600 to-brand-800 text-white text-center">
           <div class="pt-6">
             <span class="px-3 py-1 rounded-full bg-white/15 text-xs font-semibold">
-              Pengingat aktif pukul ${state.user.reminderTime}
+              Pengingat besok: ${state.user.reminderTime}
             </span>
           </div>
 
           <div class="flex flex-col items-center my-auto">
             ${renderAppLogo("w-24 h-24 mb-6")}
             <h1 class="font-display text-3xl font-extrabold tracking-tight">
-              Speak up..
+              Speak Up
             </h1>
+            <p class="font-display text-lg font-bold text-mint-200 mt-2">
+              Sampai jumpa besok
+            </p>
             <p class="text-sm text-brand-100 mt-2 max-w-[240px] leading-relaxed">
-              Terima kasih sudah berani bicara hari ini, ${state.user.name}. Sampai jumpa besok!
+              Berani bicara, tumbuh percaya diri.
             </p>
           </div>
 
-          <div class="w-full pb-4">
-            <button onclick="navigate('splash')" class="w-full py-3.5 rounded-2xl bg-white/15 hover:bg-white/25 backdrop-blur text-white font-bold text-sm border border-white/20 transition-all">
+          <div class="w-full pb-4 space-y-2">
+            <button onclick="openAppFromLauncher()" class="w-full py-3.5 rounded-2xl bg-white/15 hover:bg-white/25 backdrop-blur text-white font-bold text-sm border border-white/20 transition-all">
               Buka Aplikasi Lagi
+            </button>
+            <button onclick="navigate('launcher')" class="w-full py-2.5 rounded-2xl text-xs font-semibold text-brand-100 hover:text-white">
+              Ke Layar Utama HP (Tombol Home)
             </button>
           </div>
         </div>
       `;
     }
 
-    // Inisialisasi aplikasi saat halaman dimuat
+    // Inisialisasi aplikasi saat halaman dimuat (1.2 Splash -> 1.3 Cek sesi / Onboarding 3 layar)
+    window.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && state.googleModal.isOpen) closeGoogleAccountModal();
+    });
+
     window.addEventListener('DOMContentLoaded', async () => {
-      let startupError = '';
+      const reset = new URLSearchParams(window.location.search).get('reset');
+      if (reset && /^[a-f0-9]{64}$/.test(reset)) state.resetToken = reset;
       try {
-        const result = await apiRequest('/api/auth/me');
-        applyAuthenticatedUser(result.user);
-        state.currentScreen = state.user.onboardingComplete ? 'home' : state.user.privacyAgreed ? 'level' : 'consent';
-      } catch (error) {
-        if (error.status !== 401) startupError = error.message;
+        const configResponse = await fetch('/api/config', { credentials: 'same-origin' });
+        if (configResponse.ok) {
+          const config = await configResponse.json();
+          if (config.googleClientId) state.googleClientId = config.googleClientId;
+        }
+      } catch {
+        // Konfigurasi default tetap digunakan saat halaman dibuka offline.
       }
       render();
       renderGoogleModal();
-      if (startupError) showToast(startupError, 'error');
+      clearTimeout(state.splashTimer);
+      state.splashTimer = setTimeout(async () => {
+        await checkSessionAfterSplash();
+      }, 1500);
     });
   </script>
 </body>
