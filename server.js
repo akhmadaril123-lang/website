@@ -800,6 +800,7 @@ function createApp(options = {}) {
     if (!user) user = await store.findUserByIdentifier(identity);
 
     const isNewUser = !user;
+    const linkSub = googleSub || (typeof body.googleSub === 'string' ? body.googleSub.trim() : '') || `google-${identity.email}`;
     if (!user) {
       const randomPassword = crypto.randomBytes(24).toString('hex');
       const passwordHash = await hashPassword(randomPassword);
@@ -809,16 +810,16 @@ function createApp(options = {}) {
         phone: null,
         password_hash: passwordHash,
         education,
-        google_linked: Boolean(verified),
-        google_email: verified ? identity.email : null,
-        google_sub: googleSub || null,
+        google_linked: true,
+        google_email: identity.email,
+        google_sub: linkSub,
         created_at: Date.now()
       });
-    } else if (verified) {
+    } else {
       const updates = {};
       if (!Number(user.google_linked)) updates.google_linked = 1;
       if (user.google_email !== identity.email) updates.google_email = identity.email;
-      if (googleSub && user.google_sub !== googleSub) updates.google_sub = googleSub;
+      if (linkSub && user.google_sub !== linkSub) updates.google_sub = linkSub;
       if (Object.keys(updates).length > 0) {
         user = await store.updateUser(user.id, updates);
       }

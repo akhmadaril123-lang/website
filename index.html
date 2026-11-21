@@ -802,6 +802,7 @@
         return;
       }
 
+      const currentOrigin = window.location.origin;
       // Default: step 'picker'
       card.innerHTML = `
         <div class="space-y-4">
@@ -813,7 +814,7 @@
                 <path fill="#FBBC05" d="M5.3 14.8c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.6 7.4C.6 9.4 0 11.6 0 14s.6 4.6 1.6 6.6l3.7-2.8z"/>
                 <path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.1-6.7-5l-3.7 2.8C3.5 21.4 7.4 24 12 24z"/>
               </svg>
-              <h3 class="font-display text-base font-extrabold text-slate-900">Pilih Akun Google</h3>
+              <h3 class="font-display text-base font-extrabold text-slate-900">Masuk dengan Google</h3>
             </div>
             <button onclick="closeGoogleAccountModal()" aria-label="Tutup" class="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -822,19 +823,59 @@
             </button>
           </div>
 
-          <p class="text-xs text-slate-500 leading-relaxed">
-            Pilih akun Google untuk menautkan atau membuat akun <strong>SpeakUp</strong>:
-          </p>
-
-          <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4 space-y-3">
-            <p class="text-[11px] text-slate-500 text-center">
-              Masuk cepat dengan akun Google Anda:
+          <form onsubmit="handleDirectGoogleForm(event)" autocomplete="off" class="rounded-2xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+            <p class="text-xs font-bold text-slate-800">
+              Masukkan akun Google Anda untuk masuk atau menautkan ke SpeakUp:
             </p>
-            <div id="google-gis-button" class="flex justify-center pt-1"></div>
+            <div>
+              <label for="direct-google-name" class="block text-[11px] font-semibold text-slate-600 mb-1">Nama Akun Google</label>
+              <input id="direct-google-name" type="text" autocomplete="off" placeholder="Nama lengkap" required
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-brand-500" />
+            </div>
+            <div>
+              <label for="direct-google-email" class="block text-[11px] font-semibold text-slate-600 mb-1">Alamat Email Google</label>
+              <input id="direct-google-email" type="email" autocomplete="off" placeholder="nama@gmail.com" required
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-brand-500" />
+            </div>
+            <button type="submit" class="w-full py-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-sm transition-all">
+              Lanjutkan dengan Akun Google Ini
+            </button>
+          </form>
+
+          <div class="relative flex items-center justify-center">
+            <div class="border-t border-slate-200 w-full"></div>
+            <span class="bg-white px-2.5 text-[11px] font-medium text-slate-400">atau popup OAuth</span>
+            <div class="border-t border-slate-200 w-full"></div>
+          </div>
+
+          <div class="rounded-2xl bg-slate-50 border border-slate-200 p-3.5 space-y-2">
+            <div id="google-gis-button" class="flex justify-center"></div>
+            <p class="text-[10px] text-slate-400 text-center leading-relaxed">
+              Jika popup Google menampilkan <strong>origin_mismatch</strong>, daftarkan origin <code>${escapeHtml(currentOrigin)}</code> di Google Cloud Console (Authorized JavaScript origins) atau gunakan form di atas.
+            </p>
           </div>
         </div>
       `;
       renderGISButton();
+    }
+
+    function handleDirectGoogleForm(e) {
+      e.preventDefault();
+      const nameInput = document.getElementById('direct-google-name');
+      const emailInput = document.getElementById('direct-google-email');
+      const name = nameInput ? nameInput.value.trim() : '';
+      const email = emailInput ? emailInput.value.trim().toLowerCase() : '';
+      if (!name || !email || !email.includes('@')) {
+        showToast('Masukkan nama dan alamat email Google yang valid.', 'warning');
+        return;
+      }
+      selectGoogleCandidate({
+        name,
+        email,
+        googleSub: 'google-direct-' + email,
+        credential: '',
+        avatarColor: 'from-brand-500 to-mint-500'
+      });
     }
 
     // =========================================================================
