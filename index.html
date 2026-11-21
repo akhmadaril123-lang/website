@@ -11,6 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
   <script>
+    const GOOGLE_CLIENT_ID = '778021422214-3rchusoh5qaht0ufpn0qrqs81nk75h0t.apps.googleusercontent.com';
     tailwind.config = {
       theme: {
         extend: {
@@ -141,11 +142,10 @@
       currentScreen: 'splash', // splash, login, forgot, register, consent, level, home, practice, result, translate, quiz, profile, closing, goodbye
       // Daftar akun tersimpan (tersambung Google maupun Email/HP)
       accounts: [],
-      // Profil akun Google yang bisa dipilih di picker (termasuk akun baru yang belum tertaut)
-      googleCandidates: [],
+      googleClientId: GOOGLE_CLIENT_ID,
       googleModal: {
         isOpen: false,
-        step: 'picker', // picker, link-new, linking-existing, custom-google
+        step: 'picker', // picker, link-new, linking-existing
         selectedCandidate: null,
         pendingName: '',
         pendingEmail: '',
@@ -323,36 +323,108 @@
       renderGoogleModal();
     }
 
+    let googleIdentityServicesPromise;
+
+    function loadGoogleIdentityServices() {
+      if (window.google && window.google.accounts && window.google.accounts.id) {
+        return Promise.resolve();
+      }
+      if (googleIdentityServicesPromise) return googleIdentityServicesPromise;
+
+      googleIdentityServicesPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.onload = () => {
+          if (window.google && window.google.accounts && window.google.accounts.id) {
+            resolve();
+          } else {
+            reject(new Error('Google Identity Services tidak tersedia.'));
+          }
+        };
+        script.onerror = () => reject(new Error('Gagal memuat Google Identity Services.'));
+        document.head.appendChild(script);
+      });
+
+      return googleIdentityServicesPromise;
+    }
+
+    async function renderGISButton() {
+      const container = document.getElementById('google-gis-button');
+      const clientId = state.googleClientId;
+      if (!container || !clientId) return;
+
+      try {
+        await loadGoogleIdentityServices();
+        if (!container.isConnected || clientId !== state.googleClientId) return;
+
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleCredential
+        });
+        window.google.accounts.id.renderButton(container, {
+          theme: 'outline',
+          size: 'large',
+          text: 'signin_with',
+          shape: 'pill',
+          width: 320
+        });
+      } catch (error) {
+        googleIdentityServicesPromise = null;
+        console.error('Google Identity Services gagal dimuat:', error);
+        showToast('Tidak dapat memuat tombol Google. Periksa koneksi lalu coba lagi.', 'error');
+      }
+    }
+
+    function handleGoogleCredential(response) {
+      if (!response || typeof response.credential !== 'string') {
+        showToast('Google tidak mengirim kredensial yang valid.', 'error');
+        return;
+      }
+
+      let claims;
+      try {
+        const payload = response.credential.split('.')[1];
+        if (!payload) throw new Error('Token Google tidak memiliki payload.');
+        const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+        const paddedBase64 = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+        const payloadBytes = Uint8Array.from(atob(paddedBase64), char => char.charCodeAt(0));
+        claims = JSON.parse(new TextDecoder().decode(payloadBytes));
+      } catch (error) {
+        console.error('Kredensial Google tidak dapat dibaca:', error);
+        showToast('Respons Google tidak valid. Silakan coba lagi.', 'error');
+        return;
+      }
+
+      if (!claims || typeof claims !== 'object') {
+        showToast('Respons Google tidak valid. Silakan coba lagi.', 'error');
+        return;
+      }
+
+      const validAudience = claims.aud === state.googleClientId ||
+        (Array.isArray(claims.aud) && claims.aud.includes(state.googleClientId));
+      const validIssuer = claims.iss === 'https://accounts.google.com' ||
+        claims.iss === 'accounts.google.com';
+      if (!validAudience || !validIssuer || !Number.isFinite(claims.exp) ||
+          claims.exp <= Date.now() / 1000 ||
+          claims.email_verified !== true || !claims.sub || !claims.email || !claims.name) {
+        showToast('Identitas Google tidak lengkap atau tidak sesuai Client ID ini.', 'error');
+        return;
+      }
+
+      const candidate = {
+        name: claims.name,
+        email: claims.email.toLowerCase(),
+        googleSub: claims.sub,
+        avatarColor: 'from-emerald-500 to-teal-600'
+      };
+      selectGoogleCandidate(candidate);
+    }
+
     function closeGoogleAccountModal() {
       state.googleModal.isOpen = false;
       state.googleModal.step = 'picker';
       renderGoogleModal();
-    }
-
-    function openCustomGoogleForm() {
-      state.googleModal.step = 'custom-google';
-      state.googleModal.pendingName = '';
-      state.googleModal.pendingEmail = '';
-      renderGoogleModal();
-    }
-
-    function submitCustomGoogleAccount(e) {
-      e.preventDefault();
-      const nameInput = document.getElementById('custom-google-name').value.trim();
-      const emailInput = document.getElementById('custom-google-email').value.trim().toLowerCase();
-      if (!nameInput || !emailInput) return;
-
-      const candidate = {
-        name: nameInput,
-        email: emailInput,
-        googleSub: 'google-oauth2|' + Date.now(),
-        avatarColor: 'from-emerald-500 to-teal-600'
-      };
-      // Tambahkan ke daftar kandidat jika belum ada
-      if (!state.googleCandidates.some(c => c.email === emailInput)) {
-        state.googleCandidates.push(candidate);
-      }
-      selectGoogleCandidate(candidate);
     }
 
     function findLinkedAccountByGoogle(candidate) {
@@ -495,41 +567,6 @@
         return;
       }
 
-      if (state.googleModal.step === 'custom-google') {
-        card.innerHTML = `
-          <div class="space-y-4">
-            <div class="flex items-center justify-between">
-              <button onclick="state.googleModal.step='picker'; renderGoogleModal();" class="text-xs font-bold text-slate-500 hover:text-slate-800">
-                ← Kembali ke pilihan akun
-              </button>
-              <button onclick="closeGoogleAccountModal()" class="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100">✕</button>
-            </div>
-
-            <div>
-              <h3 class="font-display text-lg font-extrabold text-slate-900">Gunakan Akun Google Lain</h3>
-              <p class="text-xs text-slate-500 mt-0.5">Masukkan identitas Google untuk menautkan atau membuat akun SpeakUp</p>
-            </div>
-
-            <form onsubmit="submitCustomGoogleAccount(event)" class="space-y-3">
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Nama di Akun Google</label>
-                <input id="custom-google-name" type="text" value="${state.googleModal.pendingName}" placeholder="Contoh: Dimas Saputra" required
-                  class="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 text-sm outline-none focus:border-brand-500" />
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Alamat Email Google</label>
-                <input id="custom-google-email" type="email" value="${state.googleModal.pendingEmail}" placeholder="contoh@gmail.com" required
-                  class="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 text-sm outline-none focus:border-brand-500" />
-              </div>
-              <button type="submit" class="w-full py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-md">
-                Lanjutkan dengan Google
-              </button>
-            </form>
-          </div>
-        `;
-        return;
-      }
-
       if (state.googleModal.step === 'link-new') {
         const c = state.googleModal.selectedCandidate;
         const jenjangList = ['SMA', 'SMK', 'SMP', 'Umum'];
@@ -604,36 +641,15 @@
             Pilih akun Google untuk menautkan atau membuat akun <strong>SpeakUp</strong>:
           </p>
 
-          <div class="space-y-2.5">
-            ${state.googleCandidates.map((cand, i) => {
-              const linkedAcc = findLinkedAccountByGoogle(cand);
-              const isLinked = Boolean(linkedAcc && linkedAcc.googleLinked);
-              return `
-                <button type="button" onclick="selectGoogleCandidate(state.googleCandidates[${i}])"
-                  class="w-full p-3 rounded-2xl border border-slate-200 hover:border-brand-500 hover:bg-brand-50/40 transition-all flex items-center justify-between gap-3 text-left">
-                  <div class="flex items-center gap-3 min-w-0">
-                    <div class="w-10 h-10 rounded-full bg-gradient-to-br ${cand.avatarColor} text-white font-display font-bold flex items-center justify-center text-sm shrink-0">
-                      ${cand.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div class="min-w-0">
-                      <p class="text-xs font-bold text-slate-900 truncate">${cand.name}</p>
-                      <p class="text-[11px] text-slate-500 truncate">${cand.email}</p>
-                    </div>
-                  </div>
-                  <span class="px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ${isLinked ? 'bg-mint-100 text-mint-700' : 'bg-brand-50 text-brand-700 border border-brand-200'}">
-                    ${isLinked ? 'Terhubung' : 'Buat & Tautkan'}
-                  </span>
-                </button>
-              `;
-            }).join('')}
+          <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+            <p class="text-[11px] text-slate-500 text-center mb-3">
+              Pilih akun Google asli yang ingin ditautkan ke SpeakUp.
+            </p>
+            <div id="google-gis-button" class="flex justify-center"></div>
           </div>
-
-          <button type="button" onclick="openCustomGoogleForm()"
-            class="w-full py-3 rounded-2xl border border-dashed border-slate-300 hover:border-brand-500 text-xs font-bold text-slate-700 hover:text-brand-700 flex items-center justify-center gap-2 transition-all">
-            <span>+ Gunakan / Tambah Akun Google Lain</span>
-          </button>
         </div>
       `;
+      renderGISButton();
     }
 
     // =========================================================================
@@ -794,10 +810,9 @@
             <form onsubmit="handleLogin(event)" class="space-y-4">
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1.5">Email atau Nomor HP</label>
-                <input id="login-identifier" type="text" value="" autocomplete="off" placeholder="Email atau Nomor HP" required
+                <input id="login-identifier" type="text" autocomplete="off" placeholder="Email atau Nomor HP" required
                   class="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-sm transition-all" />
               </div>
-
               <div>
                 <div class="flex items-center justify-between mb-1.5">
                   <label class="block text-xs font-semibold text-slate-700">Kata sandi</label>
@@ -805,10 +820,9 @@
                     Lupa kata sandi?
                   </button>
                 </div>
-                <input id="login-password" type="password" value="" autocomplete="off" placeholder="Kata sandi" required
+                <input id="login-password" type="password" autocomplete="off" placeholder="Kata sandi" required
                   class="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-sm transition-all" />
               </div>
-
               <button type="submit" class="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 active:scale-[0.99] text-white font-bold text-sm shadow-md shadow-brand-600/20 transition-all">
                 Masuk
               </button>
@@ -834,9 +848,7 @@
           <div class="pt-4 pb-2 text-center">
             <p class="text-xs text-slate-600">
               Belum punya akun?
-              <button onclick="navigate('register')" class="font-bold text-brand-600 hover:underline ml-1">
-                Daftar
-              </button>
+              <button onclick="navigate('register')" class="font-bold text-brand-600 hover:underline ml-1">Daftar</button>
             </p>
           </div>
         </div>
@@ -856,9 +868,8 @@
         return;
       }
 
-      // Buat akun baru berbasis Email/HP jika belum terdaftar
-      const rawPart = idVal.includes('@') ? idVal.split('@')[0].split(/[._-]/)[0] : 'Pelajar';
-      const formattedName = rawPart ? rawPart.charAt(0).toUpperCase() + rawPart.slice(1) : 'Pelajar';
+      const rawName = idVal.includes('@') ? idVal.split('@')[0].split(/[._-]/)[0] : 'Pelajar';
+      const formattedName = rawName ? rawName.charAt(0).toUpperCase() + rawName.slice(1) : 'Pelajar';
       const newAcc = {
         id: 'acc-' + Date.now(),
         name: formattedName,
@@ -878,7 +889,7 @@
       };
       state.accounts.push(newAcc);
       state.user = { ...newAcc };
-      showToast(`Akun ${state.user.email} dibuat. Silakan lengkapi persetujuan & level!`, 'success');
+      showToast(`Akun ${state.user.email} dibuat. Lengkapi persetujuan & level!`, 'success');
       navigate('consent');
     }
 
