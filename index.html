@@ -791,6 +791,53 @@
     // =========================================================================
     // 5. TAHAP 2: LOGIN & LUPA KATA SANDI
     // =========================================================================
+    async function apiRequest(url, options = {}) {
+      const headers = { ...(options.headers || {}) };
+      if (options.body) headers['Content-Type'] = 'application/json';
+      const response = await fetch(url, {
+        ...options,
+        headers,
+        credentials: 'same-origin'
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        const error = new Error(result.error || 'Permintaan ke server gagal.');
+        error.status = response.status;
+        throw error;
+      }
+      return result;
+    }
+
+    function applyAuthenticatedUser(user) {
+      state.user = {
+        ...state.user,
+        ...user,
+        email: user.email || user.phone || '',
+        provider: 'email',
+        googleLinked: false,
+        googleEmail: ''
+      };
+      state.accounts = [state.user];
+    }
+
+    async function saveAuthenticatedProfile(overrides = {}) {
+      const profile = {
+        education: state.user.education,
+        level: state.user.level,
+        reminderTime: state.user.reminderTime,
+        micPermission: state.user.micPermission,
+        privacyAgreed: state.user.privacyAgreed,
+        parentalAgreed: state.user.parentalAgreed,
+        onboardingComplete: state.user.onboardingComplete,
+        ...overrides
+      };
+      const result = await apiRequest('/api/auth/profile', {
+        method: 'PUT',
+        body: JSON.stringify(profile)
+      });
+      applyAuthenticatedUser(result.user);
+    }
+
     function renderLoginScreen() {
       return `
         <div class="screen-enter min-h-full flex flex-col justify-between p-6 bg-white">
@@ -807,10 +854,10 @@
               <p class="text-xs text-slate-500 mt-1">Lanjutkan progres latihan bicaramu hari ini</p>
             </div>
 
-            <form onsubmit="handleLogin(event)" class="space-y-4">
+            <form onsubmit="handleLogin(event)" autocomplete="on" class="space-y-4">
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1.5">Email atau Nomor HP</label>
-                <input id="login-identifier" type="text" autocomplete="off" placeholder="Email atau Nomor HP" required
+                <input id="login-identifier" name="username" type="text" autocomplete="username" placeholder="Email atau Nomor HP" required
                   class="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-sm transition-all" />
               </div>
               <div>
@@ -820,7 +867,7 @@
                     Lupa kata sandi?
                   </button>
                 </div>
-                <input id="login-password" type="password" autocomplete="off" placeholder="Kata sandi" required
+                <input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Kata sandi" required
                   class="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-sm transition-all" />
               </div>
               <button type="submit" class="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 active:scale-[0.99] text-white font-bold text-sm shadow-md shadow-brand-600/20 transition-all">
@@ -855,42 +902,21 @@
       `;
     }
 
-    function handleLogin(e) {
+    async function handleLogin(e) {
       e.preventDefault();
-      const idVal = document.getElementById('login-identifier').value.trim().toLowerCase();
-      if (!idVal) return;
-
-      const matched = state.accounts.find(a => a.email.toLowerCase() === idVal);
-      if (matched) {
-        state.user = { ...matched };
+      const identifier = document.getElementById('login-identifier').value.trim();
+      const password = document.getElementById('login-password').value;
+      try {
+        const result = await apiRequest('/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ identifier, password })
+        });
+        applyAuthenticatedUser(result.user);
         showToast(`Selamat datang kembali, ${state.user.name}!`, 'success');
-        navigate('home');
-        return;
+        navigate(state.user.onboardingComplete ? 'home' : state.user.privacyAgreed ? 'level' : 'consent');
+      } catch (error) {
+        showToast(error.message, 'error');
       }
-
-      const rawName = idVal.includes('@') ? idVal.split('@')[0].split(/[._-]/)[0] : 'Pelajar';
-      const formattedName = rawName ? rawName.charAt(0).toUpperCase() + rawName.slice(1) : 'Pelajar';
-      const newAcc = {
-        id: 'acc-' + Date.now(),
-        name: formattedName,
-        email: idVal,
-        provider: 'email',
-        googleLinked: false,
-        googleEmail: '',
-        education: 'SMA',
-        level: 'Pemula',
-        streak: 1,
-        newWords: 0,
-        weeklyProgress: 10,
-        reminderTime: '19:00',
-        micPermission: false,
-        privacyAgreed: false,
-        parentalAgreed: false
-      };
-      state.accounts.push(newAcc);
-      state.user = { ...newAcc };
-      showToast(`Akun ${state.user.email} dibuat. Lengkapi persetujuan & level!`, 'success');
-      navigate('consent');
     }
 
     function renderForgotScreen() {
@@ -911,21 +937,10 @@
               </div>
               <h2 class="font-display text-2xl font-extrabold text-slate-900">Lupa Sandi</h2>
               <p class="text-sm text-slate-600 mt-2 leading-relaxed">
-                Kami kirim tautan atur ulang ke kontakmu. Masukkan email atau nomor HP yang terdaftar.
+                Reset kata sandi belum tersedia karena layanan email dan SMS belum dikonfigurasi.
               </p>
             </div>
 
-            <form onsubmit="handleForgotPassword(event)" class="space-y-4">
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Email atau Nomor HP</label>
-                <input id="forgot-contact" type="text" placeholder="Contoh: sania@email.com / 0812..." required
-                  class="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-sm transition-all" />
-              </div>
-
-              <button type="submit" class="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-md shadow-brand-600/20 transition-all">
-                Kirim Tautan
-              </button>
-            </form>
           </div>
 
           <div class="pb-4 text-center">
@@ -935,13 +950,6 @@
           </div>
         </div>
       `;
-    }
-
-    function handleForgotPassword(e) {
-      e.preventDefault();
-      const contact = document.getElementById('forgot-contact').value.trim();
-      showToast(`Tautan atur ulang sandi terkirim ke ${contact}`, 'success');
-      setTimeout(() => navigate('login'), 1200);
     }
 
     // =========================================================================
@@ -976,7 +984,7 @@
             <h2 class="font-display text-2xl font-extrabold text-slate-900">Buat Akun</h2>
             <p class="text-xs text-slate-500 mt-1 mb-5">Lengkapi data dirimu untuk memulai perjalanan speaking</p>
 
-            <form onsubmit="handleRegister(event)" class="space-y-4">
+            <form onsubmit="handleRegister(event)" autocomplete="on" class="space-y-4">
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1.5">Nama lengkap</label>
                 <input id="reg-name" type="text" value="${state.user.name}" placeholder="Contoh: Sania" required
@@ -984,14 +992,14 @@
               </div>
 
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Email</label>
-                <input id="reg-email" type="email" value="${state.user.email}" placeholder="nama@email.com" required
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Email atau Nomor HP</label>
+                <input id="reg-identifier" name="username" type="text" autocomplete="username" value="${state.user.email}" placeholder="nama@email.com atau 0812..." required
                   class="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-brand-500 outline-none text-sm" />
               </div>
 
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1.5">Kata sandi</label>
-                <input id="reg-password" type="password" value="12345678" placeholder="Minimal 6 karakter" required
+                <input id="reg-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" placeholder="Minimal 8 karakter" required
                   class="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-brand-500 outline-none text-sm" />
               </div>
 
@@ -1026,39 +1034,27 @@
       render();
     }
 
-    function handleRegister(e) {
+    async function handleRegister(e) {
       e.preventDefault();
       const fullName = document.getElementById('reg-name').value.trim() || 'Sania';
-      const emailVal = document.getElementById('reg-email').value.trim().toLowerCase();
-
-      const existingIdx = state.accounts.findIndex(a => a.email.toLowerCase() === emailVal);
-      const accountData = {
-        id: existingIdx >= 0 ? state.accounts[existingIdx].id : ('acc-' + Date.now()),
-        name: fullName,
-        email: emailVal,
-        provider: state.user.googleLinked ? 'google' : 'email',
-        googleLinked: Boolean(state.user.googleLinked),
-        googleEmail: state.user.googleLinked ? (state.user.googleEmail || emailVal) : '',
-        education: state.user.education,
-        level: state.user.level || 'Pemula',
-        streak: existingIdx >= 0 ? state.accounts[existingIdx].streak : 1,
-        newWords: existingIdx >= 0 ? state.accounts[existingIdx].newWords : 0,
-        weeklyProgress: existingIdx >= 0 ? state.accounts[existingIdx].weeklyProgress : 15,
-        reminderTime: state.user.reminderTime || '19:00',
-        micPermission: state.user.micPermission,
-        privacyAgreed: state.user.privacyAgreed,
-        parentalAgreed: state.user.parentalAgreed
-      };
-
-      if (existingIdx >= 0) {
-        state.accounts[existingIdx] = accountData;
-      } else {
-        state.accounts.push(accountData);
+      const identifier = document.getElementById('reg-identifier').value.trim();
+      const password = document.getElementById('reg-password').value;
+      try {
+        const result = await apiRequest('/api/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: fullName,
+            identifier,
+            password,
+            education: state.user.education
+          })
+        });
+        applyAuthenticatedUser(result.user);
+        showToast(`Akun ${state.user.name} dibuat. Lengkapi persetujuan & level!`, 'success');
+        navigate('consent');
+      } catch (error) {
+        showToast(error.message, 'error');
       }
-
-      state.user = { ...accountData };
-      showToast(`Profil ${state.user.name} tersimpan! Lanjut ke persetujuan.`, 'success');
-      navigate('consent');
     }
 
     function renderConsentScreen() {
@@ -1156,7 +1152,7 @@
       }
     }
 
-    function handleConsentSubmit() {
+    async function handleConsentSubmit() {
       if (!state.user.privacyAgreed) {
         showToast('Silakan centang persetujuan kebijakan privasi terlebih dahulu.', 'warning');
         return;
@@ -1164,7 +1160,12 @@
       if (!state.user.micPermission) {
         state.user.micPermission = true;
       }
-      navigate('level');
+      try {
+        await saveAuthenticatedProfile();
+        navigate('level');
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
     }
 
     function renderLevelScreen() {
@@ -1246,9 +1247,14 @@
       render();
     }
 
-    function finishOnboarding() {
-      showToast(`Akun ${state.user.name} siap! Selamat berlatih.`, 'success');
-      navigate('home');
+    async function finishOnboarding() {
+      try {
+        await saveAuthenticatedProfile({ onboardingComplete: true });
+        showToast(`Akun ${state.user.name} siap! Selamat berlatih.`, 'success');
+        navigate('home');
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
     }
 
     // =========================================================================
@@ -2017,16 +2023,48 @@ Berikan respons JSON dengan kunci:
             </div>
           </div>
 
-          <button onclick="navigate('login')" class="w-full py-3.5 rounded-2xl border border-rose-200 text-rose-600 font-bold text-sm hover:bg-rose-50 transition-all">
+          <button onclick="handleLogout()" class="w-full py-3.5 rounded-2xl border border-rose-200 text-rose-600 font-bold text-sm hover:bg-rose-50 transition-all">
             Ganti / Keluar Akun
           </button>
         </div>
       `;
     }
 
-    function updateReminderTime(val) {
+    async function handleLogout() {
+      try {
+        await apiRequest('/api/auth/logout', { method: 'POST' });
+        state.user = {
+          id: '',
+          name: 'Pelajar',
+          email: '',
+          provider: 'email',
+          googleLinked: false,
+          googleEmail: '',
+          education: 'SMA',
+          level: 'Pemula',
+          streak: 3,
+          newWords: 4,
+          weeklyProgress: 65,
+          reminderTime: '19:00',
+          micPermission: false,
+          privacyAgreed: false,
+          parentalAgreed: false
+        };
+        state.accounts = [];
+        navigate('login');
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    async function updateReminderTime(val) {
       state.user.reminderTime = val;
-      showToast(`Pengingat harian diatur ke pukul ${val}`, 'success');
+      try {
+        await saveAuthenticatedProfile();
+        showToast(`Pengingat harian diatur ke pukul ${val}`, 'success');
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
     }
 
     // =========================================================================
@@ -2129,9 +2167,18 @@ Berikan respons JSON dengan kunci:
     }
 
     // Inisialisasi aplikasi saat halaman dimuat
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
+      let startupError = '';
+      try {
+        const result = await apiRequest('/api/auth/me');
+        applyAuthenticatedUser(result.user);
+        state.currentScreen = state.user.onboardingComplete ? 'home' : state.user.privacyAgreed ? 'level' : 'consent';
+      } catch (error) {
+        if (error.status !== 401) startupError = error.message;
+      }
       render();
       renderGoogleModal();
+      if (startupError) showToast(startupError, 'error');
     });
   </script>
 </body>
