@@ -7,6 +7,7 @@ const { promisify } = require('node:util');
 const express = require('express');
 const { rateLimit } = require('express-rate-limit');
 const { DatabaseSync } = require('node:sqlite');
+const { createGoogleSheetsStore } = require('./google-sheets-store');
 
 const scrypt = promisify(crypto.scrypt);
 const SESSION_COOKIE = 'speakup_session';
@@ -74,13 +75,6 @@ function normalizeIdentifier(value) {
   return { email: null, phone };
 }
 
-function findUserByIdentifier(db, identity) {
-  if (identity.email) {
-    return db.prepare('SELECT * FROM users WHERE email = ?').get(identity.email);
-  }
-  return db.prepare('SELECT * FROM users WHERE phone = ?').get(identity.phone);
-}
-
 function toPublicUser(row) {
   return {
     id: String(row.id),
@@ -98,6 +92,56 @@ function toPublicUser(row) {
     parentalAgreed: Boolean(row.parental_agreed),
     onboardingComplete: Boolean(row.onboarding_complete),
     phoneVerified: false
+  };
+}
+
+function createSqliteStore(databasePath) {
+  const db = openDatabase(databasePath);
+  return {
+    async findUserByIdentifier(identity) {
+      if (identity.email) {
+        return db.prepare('SELECT * FROM users WHERE email = ?').get(identity.email);
+      }
+      return db.prepare('SELECT * FROM users WHERE phone = ?').get(identity.phone);
+    },
+    async findUserById(id) {
+      return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    },
+    async createUser(user) {
+      const result = db.prepare(`
+        INSERT INTO users (name, email, phone, password_hash, education, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(user.name, user.email, user.phone, user.password_hash, user.education, user.created_at);
+      return db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+    },
+    async updateUser(id, updates) {
+      const columns = Object.keys(updates);
+      const assignments = columns.map(column => `${column} = ?`).join(', ');
+      db.prepare(`UPDATE users SET ${assignments} WHERE id = ?`)
+        .run(...columns.map(column => updates[column]), id);
+      return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    },
+    async createSession(session, now) {
+      db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(now);
+      db.prepare('INSERT INTO sessions (session_hash, user_id, expires_at) VALUES (?, ?, ?)')
+        .run(session.session_hash, session.user_id, session.expires_at);
+    },
+    async findSessionUser(sessionHash, now) {
+      const row = db.prepare(`
+        SELECT users.*, sessions.session_hash
+        FROM sessions
+        JOIN users ON users.id = sessions.user_id
+        WHERE sessions.session_hash = ? AND sessions.expires_at > ?
+      `).get(sessionHash, now);
+      if (!row) db.prepare('DELETE FROM sessions WHERE session_hash = ?').run(sessionHash);
+      return row;
+    },
+    async deleteSession(sessionHash) {
+      db.prepare('DELETE FROM sessions WHERE session_hash = ?').run(sessionHash);
+    },
+    close() {
+      db.close();
+    }
   };
 }
 
@@ -156,12 +200,29 @@ function clearSessionCookie(res, isProduction) {
 
 function createApp(options = {}) {
   const isProduction = (options.nodeEnv || process.env.NODE_ENV) === 'production';
-  const configuredDatabasePath = options.databasePath || process.env.DATABASE_PATH || './data/speakup.sqlite';
-  const databasePath = configuredDatabasePath === ':memory:'
-    ? configuredDatabasePath
-    : path.resolve(__dirname, configuredDatabasePath);
-  const db = openDatabase(databasePath);
+  const hasGoogleSheetsConfig = Boolean(
+    process.env.GOOGLE_SHEETS_SPREADSHEET_ID ||
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ||
+    process.env.GOOGLE_PRIVATE_KEY
+  );
+  if (!options.store && process.env.VERCEL && !hasGoogleSheetsConfig) {
+    throw new Error('Konfigurasi Google Sheets belum diatur pada Environment Variables Vercel.');
+  }
+  const store = options.store || (hasGoogleSheetsConfig
+    ? createGoogleSheetsStore({
+      spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
+      serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      privateKey: process.env.GOOGLE_PRIVATE_KEY
+    })
+    : (() => {
+      const configuredDatabasePath = options.databasePath || process.env.DATABASE_PATH || './data/speakup.sqlite';
+      const databasePath = configuredDatabasePath === ':memory:'
+        ? configuredDatabasePath
+        : path.resolve(__dirname, configuredDatabasePath);
+      return createSqliteStore(databasePath);
+    })());
   const app = express();
+  if (process.env.VERCEL) app.set('trust proxy', 1);
   app.disable('x-powered-by');
   app.use(express.json({ limit: '16kb' }));
   app.use((req, res, next) => {
@@ -197,7 +258,7 @@ function createApp(options = {}) {
     message: { error: 'Terlalu banyak pendaftaran. Coba lagi nanti.' }
   });
 
-  function requireSession(req, res, next) {
+  async function requireSession(req, res, next) {
     const token = readCookie(req, SESSION_COOKIE);
     if (!token || !/^[a-f0-9]{64}$/.test(token)) {
       clearSessionCookie(res, isProduction);
@@ -205,14 +266,8 @@ function createApp(options = {}) {
     }
 
     const sessionHash = crypto.createHash('sha256').update(token).digest('hex');
-    const row = db.prepare(`
-      SELECT users.*, sessions.session_hash
-      FROM sessions
-      JOIN users ON users.id = sessions.user_id
-      WHERE sessions.session_hash = ? AND sessions.expires_at > ?
-    `).get(sessionHash, Date.now());
+    const row = await store.findSessionUser(sessionHash, Date.now());
     if (!row) {
-      db.prepare('DELETE FROM sessions WHERE session_hash = ?').run(sessionHash);
       clearSessionCookie(res, isProduction);
       return res.status(401).json({ error: 'Sesi sudah berakhir. Silakan masuk kembali.' });
     }
@@ -222,13 +277,15 @@ function createApp(options = {}) {
     next();
   }
 
-  function startSession(userId, res) {
-    db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(Date.now());
+  async function startSession(userId, res) {
     const token = crypto.randomBytes(32).toString('hex');
     const sessionHash = crypto.createHash('sha256').update(token).digest('hex');
     const expiresAt = Date.now() + SESSION_TTL_SECONDS * 1000;
-    db.prepare('INSERT INTO sessions (session_hash, user_id, expires_at) VALUES (?, ?, ?)')
-      .run(sessionHash, userId, expiresAt);
+    await store.createSession({
+      session_hash: sessionHash,
+      user_id: userId,
+      expires_at: expiresAt
+    }, Date.now());
     setSessionCookie(res, token, isProduction);
   }
 
@@ -259,17 +316,21 @@ function createApp(options = {}) {
     if (!EDUCATION_LEVELS.has(education)) {
       return res.status(400).json({ error: 'Pilihan jenjang tidak valid.' });
     }
-    if (findUserByIdentifier(db, identity)) {
+    if (await store.findUserByIdentifier(identity)) {
       return res.status(409).json({ error: 'Email atau nomor HP sudah terdaftar.' });
     }
 
     const passwordHash = await hashPassword(password);
-    let result;
+    let user;
     try {
-      result = db.prepare(`
-        INSERT INTO users (name, email, phone, password_hash, education, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(name, identity.email, identity.phone, passwordHash, education, Date.now());
+      user = await store.createUser({
+        name,
+        email: identity.email,
+        phone: identity.phone,
+        password_hash: passwordHash,
+        education,
+        created_at: Date.now()
+      });
     } catch (error) {
       if (error.code === 'ERR_SQLITE_CONSTRAINT_UNIQUE') {
         return res.status(409).json({ error: 'Email atau nomor HP sudah terdaftar.' });
@@ -277,8 +338,7 @@ function createApp(options = {}) {
       throw error;
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-    startSession(user.id, res);
+    await startSession(user.id, res);
     res.status(201).json({ user: toPublicUser(user) });
   });
 
@@ -289,13 +349,13 @@ function createApp(options = {}) {
       return res.status(400).json({ error: 'Email/nomor HP dan kata sandi wajib diisi.' });
     }
 
-    const user = findUserByIdentifier(db, identity);
+    const user = await store.findUserByIdentifier(identity);
     const passwordIsValid = user && await verifyPassword(body.password, user.password_hash);
     if (!passwordIsValid) {
       return res.status(401).json({ error: 'Email/nomor HP atau kata sandi salah.' });
     }
 
-    startSession(user.id, res);
+    await startSession(user.id, res);
     res.json({ user: toPublicUser(user) });
   });
 
@@ -303,7 +363,7 @@ function createApp(options = {}) {
     res.json({ user: toPublicUser(req.authUser) });
   });
 
-  app.put('/api/auth/profile', requireSession, (req, res) => {
+  app.put('/api/auth/profile', requireSession, async (req, res) => {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const updates = {};
     const booleanFields = {
@@ -340,22 +400,18 @@ function createApp(options = {}) {
       }
     }
 
-    const columns = Object.keys(updates);
-    if (columns.length === 0) {
+    if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: 'Tidak ada perubahan profil yang dikirim.' });
     }
-    const assignments = columns.map(column => `${column} = ?`).join(', ');
-    db.prepare(`UPDATE users SET ${assignments} WHERE id = ?`)
-      .run(...columns.map(column => updates[column]), req.authUser.id);
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.authUser.id);
+    const user = await store.updateUser(req.authUser.id, updates);
     res.json({ user: toPublicUser(user) });
   });
 
-  app.post('/api/auth/logout', (req, res) => {
+  app.post('/api/auth/logout', async (req, res) => {
     const token = readCookie(req, SESSION_COOKIE);
     if (token && /^[a-f0-9]{64}$/.test(token)) {
       const sessionHash = crypto.createHash('sha256').update(token).digest('hex');
-      db.prepare('DELETE FROM sessions WHERE session_hash = ?').run(sessionHash);
+      await store.deleteSession(sessionHash);
     }
     clearSessionCookie(res, isProduction);
     res.json({ success: true });
@@ -377,7 +433,7 @@ function createApp(options = {}) {
     res.status(500).json({ error: 'Terjadi kesalahan pada server.' });
   });
 
-  app.locals.closeDatabase = () => db.close();
+  app.locals.closeDatabase = () => store.close();
   return app;
 }
 

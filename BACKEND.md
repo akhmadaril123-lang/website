@@ -9,7 +9,32 @@ npm install
 npm start
 ```
 
-Buka `http://localhost:3000`. Data akun dan sesi disimpan di `data/speakup.sqlite`; kata sandi disimpan sebagai hash scrypt. Jangan unggah `.env` atau database ke Git.
+Buka `http://localhost:3000`. Tanpa konfigurasi Google Sheets, data akun dan sesi disimpan di `data/speakup.sqlite`; kata sandi disimpan sebagai hash scrypt. Jangan unggah `.env` atau database ke Git.
+
+## Deploy ke Vercel dengan Google Sheets
+
+Vercel menjalankan Express app dari `index.js`. Untuk memakai Google Sheets, siapkan Google Cloud service account, aktifkan Google Sheets API, lalu bagikan spreadsheet kepada email service account sebagai Editor. Jangan pernah meletakkan private key di HTML atau Git.
+
+Buat spreadsheet dengan dua tab bernama `users` dan `sessions`. Baris pertama tab `users` harus berisi kolom berikut, persis berurutan. Masukkan setiap nama sebagai sel terpisah dari kolom A ke kanan:
+
+```text
+id, name, email, phone, password_hash, education, level, reminder_time, mic_permission, privacy_agreed, parental_agreed, onboarding_complete, created_at
+```
+
+Baris pertama tab `sessions`:
+
+```text
+session_hash, user_id, expires_at
+```
+
+Di Vercel, buka **Project Settings → Environment Variables** dan atur:
+
+- `GOOGLE_SHEETS_SPREADSHEET_ID`: ID di antara `/d/` dan `/edit` pada URL spreadsheet.
+- `GOOGLE_SERVICE_ACCOUNT_EMAIL`: email service account.
+- `GOOGLE_PRIVATE_KEY`: nilai `private_key` dari file JSON service account; simpan hanya sebagai environment variable rahasia.
+- `NODE_ENV`: `production`.
+
+Deploy ulang setelah mengatur variabel. Saat konfigurasi Google Sheets tersedia, aplikasi tidak memakai SQLite. `APP_ORIGIN` tidak wajib untuk deployment Vercel standar; aplikasi memeriksa origin berdasarkan host permintaan HTTPS. Tab spreadsheet hanya untuk penggunaan kecil; Google Sheets tidak menyediakan transaksi/keunikan atomik seperti database dan dapat mencapai batas API. Gunakan database terkelola untuk aplikasi dengan banyak pengguna.
 
 ## API autentikasi
 
