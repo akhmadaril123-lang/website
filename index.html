@@ -557,94 +557,133 @@
         explanation: 'Study dipakai untuk kegiatan belajar. Pakai at sebelum nama tempat.',
         isLoading: false
       },
-      // State kuis cepat per level
+      // State kuis cepat progresif (100 kuis: Pemula, Menengah, Lanjut, Master)
       quiz: {
+        selectedTier: 'Pemula', // 'Semua', 'Pemula', 'Menengah', 'Lanjut', 'Master'
+        shuffleQuestions: false,
         currentIndex: 0,
         score: 0,
+        combo: 0,
+        bestCombo: 0,
         answered: null,
-        questionsByLevel: {
-          Pemula: [
-            {
-              q: "Bagaimana cara baca yang tepat untuk kata 'study'?",
-              options: ["stadi", "studi", "stedi", "stodai"],
-              answer: 0,
-              info: "Kata 'study' dilafalkan seperti 'stadi'."
-            },
-            {
-              q: "Preposisi yang tepat sebelum nama tempat spesifik: 'I study ___ school'",
-              options: ["in", "on", "at", "to"],
-              answer: 2,
-              info: "Gunakan 'at' sebelum tempat spesifik seperti school atau nama sekolah."
-            },
-            {
-              q: "Arti dari kalimat 'I speak with confidence' adalah...",
-              options: ["Saya berbicara dengan cepat", "Saya berbicara dengan percaya diri", "Saya takut berbicara", "Saya belajar membaca"],
-              answer: 1,
-              info: "'Confidence' berarti rasa percaya diri."
-            },
-            {
-              q: "Preposisi alat transportasi yang tepat: 'I go to school ___ bicycle'",
-              options: ["with", "by", "on", "at"],
-              answer: 1,
-              info: "Pakai 'by' sebelum alat transportasi tanpa kata sandang (by bicycle, by bus)."
-            }
-          ],
-          Menengah: [
-            {
-              q: "Bentuk kata kerja yang tepat setelah 'like': 'I like ___ books'",
-              options: ["read", "reading", "reads", "readed"],
-              answer: 1,
-              info: "Setelah 'like', gunakan bentuk -ing (gerund) untuk menyatakan hobi."
-            },
-            {
-              q: "Kalimat yang benar untuk rencana akhir pekan adalah...",
-              options: ["I going to visit", "I am going to visit", "I am go to visit", "I will to visit"],
-              answer: 1,
-              info: "Pola rencana masa depan: subject + am/is/are + going to + verb 1."
-            },
-            {
-              q: "Kata 'confidently' dalam 'I speak confidently' berfungsi sebagai...",
-              options: ["Kata benda (noun)", "Kata sifat (adjective)", "Kata keterangan (adverb)", "Kata depan (preposition)"],
-              answer: 2,
-              info: "Adverb berakhiran -ly menjelaskan bagaimana kata kerja dilakukan."
-            },
-            {
-              q: "Manakah penulisan yang benar untuk 'kosakata baru'?",
-              options: ["new vocabularies", "new vocabulary", "a new vocabularies", "news vocabulary"],
-              answer: 1,
-              info: "'Vocabulary' umumnya digunakan sebagai uncountable noun."
-            }
-          ],
-          Lanjut: [
-            {
-              q: "Pilih bentuk perbandingan yang tepat: 'Practicing aloud is ___ than reading silently.'",
-              options: ["effectiver", "more effective", "most effective", "very effective"],
-              answer: 1,
-              info: "Kata sifat dengan 3 suku kata atau lebih memakai 'more ... than'."
-            },
-            {
-              q: "Frasa pembuka presentasi yang paling sopan dan formal adalah...",
-              options: ["I want tell you", "I would like to share", "Listen to me now", "I gonna talk"],
-              answer: 1,
-              info: "'I would like to share...' adalah standar profesional untuk presentasi."
-            },
-            {
-              q: "Kata kerja yang tepat: 'A meaningful career ___ positively to the community.'",
-              options: ["contribute", "contributing", "contributes", "contributed to"],
-              answer: 2,
-              info: "Subjek tunggal orang ketiga ('A meaningful career') membutuhkan akhiran -s."
-            },
-            {
-              q: "Sinonim paling tepat untuk 'practical' dalam 'practical ways' adalah...",
-              options: ["rumit", "praktis dan mudah diterapkan", "mahal", "teoretis saja"],
-              answer: 1,
-              info: "'Practical' berarti realistis dan dapat langsung dipraktikkan."
-            }
-          ]
-        },
+        completedIds: [],
         questions: []
       }
     };
+
+    const QUIZ_TIERS = ['Pemula', 'Menengah', 'Lanjut', 'Master'];
+
+    // Bank 100 Kuis Bahasa Inggris Berjenjang (Pemula 1-25, Menengah 26-50, Lanjut 51-75, Master 76-100)
+    // Catatan: Opsi A/B/C/D selalu diacak otomatis menggunakan Fisher-Yates setiap sesi dimulai.
+    const QUIZ_BANK_100 = [
+      // ==================== LEVEL 1: PEMULA (1 - 25) ====================
+      { id: 1, level: 'Pemula', cat: 'Pronunciation', q: "Bagaimana cara baca yang tepat untuk kata 'study'?", options: ["stadi", "studi", "stedi", "stodai"], answer: 0, info: "Huruf 'u' pada 'study' dibaca pendek seperti 'a', sehingga menjadi 'stadi'." },
+      { id: 2, level: 'Pemula', cat: 'Grammar', q: "Preposisi yang tepat sebelum tempat spesifik: 'I study ___ school.'", options: ["at", "in", "on", "to"], answer: 0, info: "Gunakan 'at' untuk lokasi kegiatan spesifik seperti at school atau at home." },
+      { id: 3, level: 'Pemula', cat: 'Vocabulary', q: "Arti dari kalimat 'I speak with confidence' adalah...", options: ["Saya berbicara dengan percaya diri", "Saya berbicara dengan sangat cepat", "Saya takut berbicara di kelas", "Saya belajar membaca buku"], answer: 0, info: "'Confidence' berarti rasa percaya diri." },
+      { id: 4, level: 'Pemula', cat: 'Grammar', q: "Preposisi alat transportasi yang tepat: 'I go to school ___ bicycle.'", options: ["by", "with", "on", "at"], answer: 0, info: "Pakai 'by' sebelum alat transportasi tanpa kata sandang (by bicycle, by bus)." },
+      { id: 5, level: 'Pemula', cat: 'Speaking', q: "Ungkapan paling natural untuk menyapa guru di pagi hari adalah...", options: ["Good morning, Sir.", "Good night, Sir.", "See you yesterday, Sir.", "Morning you, Sir."], answer: 0, info: "'Good morning' adalah sapaan sopan di pagi hari." },
+      { id: 6, level: 'Pemula', cat: 'Grammar', q: "Pilih 'to be' yang benar: 'She ___ my best friend.'", options: ["is", "am", "are", "be"], answer: 0, info: "Subjek tunggal orang ketiga (he, she, it) selalu memakai 'is'." },
+      { id: 7, level: 'Pemula', cat: 'Pronunciation', q: "Kata mana yang memiliki bunyi 'th' lembut seperti pada 'thank'?", options: ["think", "time", "tree", "talk"], answer: 0, info: "'Think' dan 'thank' sama-sama memakai bunyi dental fricative /θ/." },
+      { id: 8, level: 'Pemula', cat: 'Vocabulary', q: "Lawan kata (antonym) dari 'early' adalah...", options: ["late", "fast", "soon", "near"], answer: 0, info: "'Early' artinya awal/lebih cepat, lawannya 'late' (terlambat)." },
+      { id: 9, level: 'Pemula', cat: 'Grammar', q: "Kalimat yang benar untuk menyatakan kebiasaan harian adalah...", options: ["I wake up at 6 a.m.", "I waking up at 6 a.m.", "I wakes up at 6 a.m.", "I woke up every morning."], answer: 0, info: "Present simple untuk subjek 'I' memakai kata kerja dasar tanpa -s." },
+      { id: 10, level: 'Pemula', cat: 'Speaking', q: "Cara sopan meminta seseorang mengulang ucapannya adalah...", options: ["Could you repeat that, please?", "Say again now!", "Repeat it fast!", "I don't hear you, stop."], answer: 0, info: "'Could you repeat that, please?' sopan dan natural dalam percakapan." },
+      { id: 11, level: 'Pemula', cat: 'Grammar', q: "Pilih kata ganti kepunyaan yang benar: 'This is ___ notebook.'", options: ["my", "me", "I", "mine"], answer: 0, info: "Sebelum kata benda (notebook), gunakan possessive adjective 'my'." },
+      { id: 12, level: 'Pemula', cat: 'Pronunciation', q: "Huruf yang tidak dibaca (silent letter) pada kata 'know' adalah...", options: ["k", "n", "o", "w"], answer: 0, info: "Pada kata 'know' (nou), huruf 'k' di awal tidak dilafalkan." },
+      { id: 13, level: 'Pemula', cat: 'Vocabulary', q: "Arti kata 'homework' dalam bahasa Indonesia adalah...", options: ["pekerjaan rumah (PR)", "rumah kerja", "kerja bakti", "pekerjaan kantor"], answer: 0, info: "'Homework' berarti tugas sekolah yang dikerjakan di rumah." },
+      { id: 14, level: 'Pemula', cat: 'Grammar', q: "Bentuk jamak (plural) yang tepat dari 'child' adalah...", options: ["children", "childs", "childes", "childrens"], answer: 0, info: "'Child' termasuk irregular plural, bentuk jamaknya 'children'." },
+      { id: 15, level: 'Pemula', cat: 'Speaking', q: "Jawaban yang tepat untuk pertanyaan 'How are you?' adalah...", options: ["I am doing well, thank you.", "I am twelve years old.", "I live in Jakarta.", "My name is Budi."], answer: 0, info: "'How are you?' menanyakan kabar, bukan umur atau alamat." },
+      { id: 16, level: 'Pemula', cat: 'Grammar', q: "Preposisi hari yang tepat: 'We have English class ___ Monday.'", options: ["on", "in", "at", "by"], answer: 0, info: "Gunakan 'on' sebelum nama hari (on Monday, on Friday)." },
+      { id: 17, level: 'Pemula', cat: 'Vocabulary', q: "Kata 'library' merujuk pada tempat untuk...", options: ["membaca dan meminjam buku", "membeli makanan ringan", "bermain sepak bola", "menunggu bus sekolah"], answer: 0, info: "'Library' artinya perpustakaan." },
+      { id: 18, level: 'Pemula', cat: 'Grammar', q: "Pilih kalimat negatif yang benar: 'He ___ like spicy food.'", options: ["does not", "do not", "is not", "are not"], answer: 0, info: "Untuk subjek 'he/she/it' di present simple, gunakan 'does not' (doesn't)." },
+      { id: 19, level: 'Pemula', cat: 'Pronunciation', q: "Bagaimana pelafalan umum kata 'Wednesday'?", options: ["wenz-dei", "wed-nes-dei", "wid-nes-dai", "wen-dis-dei"], answer: 0, info: "Huruf 'd' pertama dan 'e' kedua pada 'Wednesday' luluh menjadi 'wenz-dei'." },
+      { id: 20, level: 'Pemula', cat: 'Grammar', q: "Preposisi bulan yang tepat: 'My birthday is ___ August.'", options: ["in", "on", "at", "to"], answer: 0, info: "Gunakan 'in' sebelum nama bulan atau tahun (in August, in 2026)." },
+      { id: 21, level: 'Pemula', cat: 'Speaking', q: "Kalimat yang benar untuk memperkenalkan diri adalah...", options: ["Hello, my name is Raka.", "Hello, I name is Raka.", "Hello, me name Raka.", "Hello, my name are Raka."], answer: 0, info: "Gunakan 'My name is ...' atau 'I am ...'." },
+      { id: 22, level: 'Pemula', cat: 'Vocabulary', q: "Sinonim dari kata 'happy' adalah...", options: ["glad", "sad", "tired", "angry"], answer: 0, info: "'Glad' bermakna senang/bahagia seperti 'happy'." },
+      { id: 23, level: 'Pemula', cat: 'Grammar', q: "Pilih kata tanya yang tepat: '___ do you live?'", options: ["Where", "Who", "When", "Why"], answer: 0, info: "'Where' digunakan untuk menanyakan tempat tinggal atau lokasi." },
+      { id: 24, level: 'Pemula', cat: 'Pronunciation', q: "Kata mana yang pelafalannya mirip dengan 'see'?", options: ["sea", "say", "saw", "so"], answer: 0, info: "'See' dan 'sea' adalah homofon yang keduanya dilafalkan /siː/." },
+      { id: 25, level: 'Pemula', cat: 'Speaking', q: "Ungkapan terima kasih yang paling sesuai setelah dibantu teman adalah...", options: ["Thank you so much for your help.", "You are welcome very much.", "Never mind for helping.", "Excuse me for your help."], answer: 0, info: "'Thank you so much for your help' menyatakan apresiasi dengan jelas." },
+
+      // ==================== LEVEL 2: MENENGAH (26 - 50) ====================
+      { id: 26, level: 'Menengah', cat: 'Grammar', q: "Bentuk kata kerja yang tepat setelah 'like': 'I like ___ books.'", options: ["reading", "read", "reads", "readed"], answer: 0, info: "Setelah 'like' untuk menyatakan hobi, gunakan bentuk gerund (-ing)." },
+      { id: 27, level: 'Menengah', cat: 'Grammar', q: "Kalimat yang benar untuk rencana akhir pekan adalah...", options: ["I am going to visit my cousin.", "I going to visit my cousin.", "I am go to visit my cousin.", "I will to visit my cousin."], answer: 0, info: "Pola rencana masa depan: subject + am/is/are + going to + verb 1." },
+      { id: 28, level: 'Menengah', cat: 'Grammar', q: "Kata 'confidently' dalam 'I speak confidently' berfungsi sebagai...", options: ["kata keterangan (adverb)", "kata benda (noun)", "kata sifat (adjective)", "kata depan (preposition)"], answer: 0, info: "Adverb berakhiran -ly menjelaskan bagaimana suatu tindakan dilakukan." },
+      { id: 29, level: 'Menengah', cat: 'Vocabulary', q: "Manakah penulisan yang benar untuk 'kosakata baru'?", options: ["new vocabulary", "new vocabularies", "a new vocabularies", "news vocabulary"], answer: 0, info: "'Vocabulary' umumnya digunakan sebagai uncountable noun." },
+      { id: 30, level: 'Menengah', cat: 'Grammar', q: "Bentuk lampau (past tense) dari kalimat 'She goes to the market' adalah...", options: ["She went to the market.", "She goed to the market.", "She gone to the market.", "She going to the market."], answer: 0, info: "Kata kerja 'go' adalah irregular verb: go -> went -> gone." },
+      { id: 31, level: 'Menengah', cat: 'Speaking', q: "Frasa yang tepat untuk menyampaikan pendapat secara sopan adalah...", options: ["In my opinion, practicing daily helps a lot.", "My opinion is you must agree.", "I opinion that practicing helps.", "Opinion me, practicing is good."], answer: 0, info: "'In my opinion, ...' adalah pembuka opini yang natural." },
+      { id: 32, level: 'Menengah', cat: 'Grammar', q: "Pilih modal verb untuk memberi saran: 'You ___ practice speaking every day.'", options: ["should", "might not to", "must to", "can to"], answer: 0, info: "'Should' dipakai untuk saran dan diikuti langsung verb 1 tanpa 'to'." },
+      { id: 33, level: 'Menengah', cat: 'Vocabulary', q: "Arti phrasal verb 'give up' dalam kalimat 'Never give up!' adalah...", options: ["menyerah", "memberikan hadiah", "bangun tidur", "melihat ke atas"], answer: 0, info: "'Give up' berarti menyerah atau berhenti berusaha." },
+      { id: 34, level: 'Menengah', cat: 'Grammar', q: "Kalimat present continuous yang benar untuk kejadian sekarang adalah...", options: ["They are practicing English right now.", "They practicing English right now.", "They is practicing English right now.", "They are practice English right now."], answer: 0, info: "Present continuous: subject + am/is/are + verb-ing." },
+      { id: 35, level: 'Menengah', cat: 'Pronunciation', q: "Huruf mana yang tidak dilafalkan pada kata 'listen'?", options: ["t", "l", "s", "n"], answer: 0, info: "Kata 'listen' dilafalkan 'lisen', huruf 't' bersifat silent." },
+      { id: 36, level: 'Menengah', cat: 'Grammar', q: "Pilih kata penghubung yang tepat: 'I was tired, ___ I finished my homework.'", options: ["but", "because", "so that", "unless"], answer: 0, info: "'But' menghubungkan dua gagasan yang kontras." },
+      { id: 37, level: 'Menengah', cat: 'Vocabulary', q: "Arti phrasal verb 'look forward to' adalah...", options: ["menantikan dengan antusias", "melihat ke belakang", "mencari barang hilang", "mengabaikan jadwal"], answer: 0, info: "'I look forward to meeting you' berarti saya menantikan pertemuan itu." },
+      { id: 38, level: 'Menengah', cat: 'Grammar', q: "Lengkapi kalimat: 'There ___ many students in the auditorium yesterday.'", options: ["were", "was", "is", "are"], answer: 0, info: "Subjek jamak (many students) di masa lampau (yesterday) memakai 'were'." },
+      { id: 39, level: 'Menengah', cat: 'Speaking', q: "Cara tepat menanyakan arah ke stasiun terdekat adalah...", options: ["Excuse me, how do I get to the nearest station?", "Hey, where station near?", "Tell me station road now.", "Do you know go station?"], answer: 0, info: "'How do I get to ...?' adalah pola baku dan sopan menanyakan arah." },
+      { id: 40, level: 'Menengah', cat: 'Grammar', q: "Pilih kata yang tepat untuk benda yang bisa dihitung: 'How ___ books did you read?'", options: ["many", "much", "little", "less"], answer: 0, info: "'Many' digunakan untuk countable plural nouns seperti books." },
+      { id: 41, level: 'Menengah', cat: 'Pronunciation', q: "Akhiran '-ed' pada kata 'worked' dilafalkan dengan bunyi...", options: ["/t/", "/id/", "/d/", "/ed/"], answer: 0, info: "Setelah konsonan tak bersuara seperti /k/, akhiran -ed dibaca /t/ (workt)." },
+      { id: 42, level: 'Menengah', cat: 'Vocabulary', q: "Kata 'improve' paling dekat artinya dengan...", options: ["meningkatkan", "menghapus", "mengurangi", "menunda"], answer: 0, info: "'Improve' berarti memperbaiki atau meningkatkan kualitas." },
+      { id: 43, level: 'Menengah', cat: 'Grammar', q: "Bentuk comparative dari kata sifat 'good' adalah...", options: ["better", "gooder", "more good", "best"], answer: 0, info: "'Good' tidak beraturan: good -> better -> best." },
+      { id: 44, level: 'Menengah', cat: 'Speaking', q: "Respons sopan saat tidak setuju dengan ide teman dalam diskusi adalah...", options: ["I see your point, but I have a different idea.", "Your idea is totally wrong.", "No, do not say that.", "I disagree you completely."], answer: 0, info: "Menghargai sudut pandang lawan bicara terlebih dahulu membuat diskusi konstruktif." },
+      { id: 45, level: 'Menengah', cat: 'Grammar', q: "Lengkapi kalimat: 'She has lived in Bandung ___ 2021.'", options: ["since", "for", "from", "during"], answer: 0, info: "'Since' dipakai untuk titik awal waktu (since 2021), sedangkan 'for' untuk durasi." },
+      { id: 46, level: 'Menengah', cat: 'Vocabulary', q: "Arti phrasal verb 'turn down' dalam 'He turned down the offer' adalah...", options: ["menolak", "menerima", "memperbesar", "menyalakan"], answer: 0, info: "'Turn down' dapat berarti menolak tawaran atau mengecilkan volume." },
+      { id: 47, level: 'Menengah', cat: 'Grammar', q: "Kalimat tanya past simple yang benar adalah...", options: ["Did you watch the match last night?", "Did you watched the match last night?", "Do you watched the match last night?", "Were you watch the match last night?"], answer: 0, info: "Setelah auxiliary 'Did', kata kerja kembali ke bentuk dasar (watch)." },
+      { id: 48, level: 'Menengah', cat: 'Pronunciation', q: "Kata mana yang memiliki penekanan (stress) pada suku kata KEDUA?", options: ["begin", "table", "happy", "student"], answer: 0, info: "'Begin' ditekan pada suku kata kedua: be-GIN." },
+      { id: 49, level: 'Menengah', cat: 'Grammar', q: "Pilih pronoun refleksif yang tepat: 'We prepared the presentation by ___.'", options: ["ourselves", "ourself", "us", "themselves"], answer: 0, info: "Bentuk refleksif jamak dari 'we' adalah 'ourselves'." },
+      { id: 50, level: 'Menengah', cat: 'Speaking', q: "Kalimat yang tepat untuk menutup percakapan telepon secara sopan adalah...", options: ["Thank you for calling. Have a great day!", "I close the phone now.", "Stop talking, bye.", "Finish call, thank you."], answer: 0, info: "'Thank you for calling. Have a great day!' terdengar ramah dan profesional." },
+
+      // ==================== LEVEL 3: LANJUT (51 - 75) ====================
+      { id: 51, level: 'Lanjut', cat: 'Grammar', q: "Pilih perbandingan yang tepat: 'Practicing aloud is ___ than reading silently.'", options: ["more effective", "effectiver", "most effective", "very effective"], answer: 0, info: "Kata sifat 3 suku kata atau lebih memakai 'more ... than'." },
+      { id: 52, level: 'Lanjut', cat: 'Speaking', q: "Frasa pembuka presentasi yang paling sopan dan formal adalah...", options: ["I would like to share our findings today.", "I want tell you our findings.", "Listen to me right now.", "I gonna talk about findings."], answer: 0, info: "'I would like to share...' adalah standar profesional untuk presentasi." },
+      { id: 53, level: 'Lanjut', cat: 'Grammar', q: "Kata kerja yang tepat: 'A meaningful career ___ positively to the community.'", options: ["contributes", "contribute", "contributing", "contributed to"], answer: 0, info: "Subjek tunggal orang ketiga ('A meaningful career') membutuhkan akhiran -s." },
+      { id: 54, level: 'Lanjut', cat: 'Vocabulary', q: "Sinonim paling tepat untuk 'practical' dalam 'practical ways' adalah...", options: ["praktis dan mudah diterapkan", "rumit dan panjang", "mahal dan langka", "teoretis semata"], answer: 0, info: "'Practical' berarti realistis dan dapat langsung dipraktikkan." },
+      { id: 55, level: 'Lanjut', cat: 'Grammar', q: "Lengkapi conditional type 1: 'If you practice regularly, your fluency ___.'", options: ["will improve", "would improved", "improved", "improving"], answer: 0, info: "Conditional type 1: If + present simple, will + verb 1." },
+      { id: 56, level: 'Lanjut', cat: 'Grammar', q: "Lengkapi conditional type 2: 'If I ___ more time, I would learn Japanese too.'", options: ["had", "have", "will have", "am having"], answer: 0, info: "Conditional type 2 (pengandaian saat ini) memakai past simple di klausa 'if'." },
+      { id: 57, level: 'Lanjut', cat: 'Grammar', q: "Bentuk kalimat pasif (passive voice) dari 'The teacher praised the students' adalah...", options: ["The students were praised by the teacher.", "The students was praised by the teacher.", "The students are praising by the teacher.", "The students praised by the teacher."], answer: 0, info: "Past simple passive: plural subject + were + verb 3 (praised)." },
+      { id: 58, level: 'Lanjut', cat: 'Grammar', q: "Pilih kata hubung yang tepat: '___ the heavy rain, the team arrived on time.'", options: ["Despite", "Although", "Even though", "However"], answer: 0, info: "'Despite' diikuti oleh frasa kata benda (the heavy rain), bukan klausa lengkap." },
+      { id: 59, level: 'Lanjut', cat: 'Grammar', q: "Pilih kata hubung yang tepat: '___ it rained heavily, the team arrived on time.'", options: ["Although", "Despite", "In spite of", "Because of"], answer: 0, info: "'Although' diikuti subjek + kata kerja (it rained)." },
+      { id: 60, level: 'Lanjut', cat: 'Vocabulary', q: "Kolokasi (collocation) yang paling alami dalam bahasa Inggris adalah...", options: ["make a decision", "do a decision", "create a decision", "build a decision"], answer: 0, info: "Pasangan kata yang baku adalah 'make a decision', bukan 'do a decision'." },
+      { id: 61, level: 'Lanjut', cat: 'Speaking', q: "Frasa transisi terbaik untuk pindah ke poin berikutnya saat presentasi adalah...", options: ["Moving on to our next point, ...", "Jump next topic now, ...", "Finish this, go other, ...", "Nextly I want say, ..."], answer: 0, info: "'Moving on to our next point' menjaga alur presentasi tetap halus." },
+      { id: 62, level: 'Lanjut', cat: 'Grammar', q: "Pilih relative pronoun yang tepat: 'The mentor ___ guided me works at a tech firm.'", options: ["who", "which", "whose", "where"], answer: 0, info: "'Who' digunakan sebagai subjek klausa relatif untuk merujuk pada orang." },
+      { id: 63, level: 'Lanjut', cat: 'Pronunciation', q: "Kata mana yang memiliki huruf 'b' tidak dibaca (silent b)?", options: ["subtle", "habit", "public", "number"], answer: 0, info: "Pada 'subtle' (sat-el), huruf 'b' tidak dilafalkan." },
+      { id: 64, level: 'Lanjut', cat: 'Vocabulary', q: "Arti dari 'consistent' dalam konteks belajar bahasa adalah...", options: ["teratur dan berkesinambungan", "cepat bosan", "kadang-kadang saja", "terlalu kaku"], answer: 0, info: "'Consistent' berarti dilakukan secara rutin tanpa putus." },
+      { id: 65, level: 'Lanjut', cat: 'Grammar', q: "Lengkapi kalimat: 'She is interested ___ developing public speaking skills.'", options: ["in", "on", "at", "for"], answer: 0, info: "Pasangan preposisi baku adalah 'interested in + noun/gerund'." },
+      { id: 66, level: 'Lanjut', cat: 'Grammar', q: "Pilih kalimat dengan reported speech yang benar dari: He said, 'I am ready.'", options: ["He said that he was ready.", "He said that he is ready yesterday.", "He said that I was ready.", "He told that he was ready."], answer: 0, info: "Pada reported speech bentuk lampau, 'am' bergeser menjadi 'was'." },
+      { id: 67, level: 'Lanjut', cat: 'Vocabulary', q: "Arti idiom 'break the ice' dalam pertemuan baru adalah...", options: ["mencairkan suasana canggung", "memecahkan es batu", "menghentikan rapat", "membuat konflik baru"], answer: 0, info: "'Break the ice' berarti memulai obrolan agar suasana lebih santai." },
+      { id: 68, level: 'Lanjut', cat: 'Grammar', q: "Pilih kalimat yang benar untuk menyatakan kebiasaan masa lalu yang sudah berhenti:", options: ["I used to be shy when speaking English.", "I use to be shy when speaking English.", "I am used to shy when speaking English.", "I using to be shy when speaking English."], answer: 0, info: "'Used to + verb 1' menyatakan kebiasaan atau kondisi di masa lalu." },
+      { id: 69, level: 'Lanjut', cat: 'Speaking', q: "Cara profesional meminta klarifikasi dalam rapat adalah...", options: ["Could you clarify what you mean by that?", "What are you even talking about?", "Your point makes zero sense.", "Explain again because I confused."], answer: 0, info: "'Could you clarify...?' terdengar profesional dan fokus pada solusi." },
+      { id: 70, level: 'Lanjut', cat: 'Grammar', q: "Pilih bentuk kata kerja yang tepat: 'Neither the coach nor the players ___ late.'", options: ["were", "was", "is", "has been"], answer: 0, info: "Pada 'neither ... nor ...', kata kerja mengikuti subjek terdekat ('the players' = jamak)." },
+      { id: 71, level: 'Lanjut', cat: 'Vocabulary', q: "Kolokasi yang benar untuk 'mengambil tanggung jawab' adalah...", options: ["take responsibility", "make responsibility", "do responsibility", "give responsibility"], answer: 0, info: "Ungkapan baku untuk memikul tanggung jawab adalah 'take responsibility'." },
+      { id: 72, level: 'Lanjut', cat: 'Pronunciation', q: "Pada kata 'comfortable', jumlah suku kata yang umum diucapkan penutur asli adalah...", options: ["3 suku kata (kamf-ter-bel)", "5 suku kata (kom-for-ta-be-el)", "2 suku kata (kam-fel)", "6 suku kata"], answer: 0, info: "Dalam percakapan alami, 'comfortable' biasanya diucapkan 3 suku kata: /ˈkʌmf.tə.bəl/." },
+      { id: 73, level: 'Lanjut', cat: 'Grammar', q: "Lengkapi kalimat: 'By the time we arrived, the workshop ___ already started.'", options: ["had", "has", "have", "was"], answer: 0, info: "Past perfect ('had + V3') menunjukkan aksi yang selesai sebelum kejadian lampau lain." },
+      { id: 74, level: 'Lanjut', cat: 'Vocabulary', q: "Arti dari 'fluency' dalam kemampuan speaking adalah...", options: ["kelancaran berbicara tanpa jeda kaku", "kecepatan mengetik di komputer", "jumlah halaman yang dibaca", "volume suara saat berbicara"], answer: 0, info: "'Fluency' menilai kelancaran dan alur bicara secara alami." },
+      { id: 75, level: 'Lanjut', cat: 'Speaking', q: "Frasa penutup presentasi yang kuat sebelum sesi tanya jawab adalah...", options: ["Thank you for your attention. I welcome any questions.", "That is all, do not ask.", "Finished now, you can go.", "Thank you, no more slides."], answer: 0, info: "Menutup dengan apresiasi dan membuka ruang tanya jawab mencerminkan kesiapan." },
+
+      // ==================== LEVEL 4: MASTER / TERTINGGI (76 - 100) ====================
+      { id: 76, level: 'Master', cat: 'Grammar', q: "Lengkapi conditional type 3: 'If she had practiced earlier, she ___ the debate.'", options: ["would have won", "will have won", "would win", "had won"], answer: 0, info: "Conditional type 3 (penyesalan masa lalu): If + had V3, would have + V3." },
+      { id: 77, level: 'Master', cat: 'Grammar', q: "Pilih kalimat inversi (inversion) yang gramatikal untuk penekanan formal:", options: ["Never have I seen such remarkable progress.", "Never I have seen such remarkable progress.", "Never did I saw such remarkable progress.", "Never have I saw such remarkable progress."], answer: 0, info: "Adverb negatif di awal kalimat ('Never') memicu inversi auxiliary + subjek." },
+      { id: 78, level: 'Master', cat: 'Grammar', q: "Pilih bentuk subjunctive yang tepat: 'The committee recommended that he ___ early.'", options: ["submit", "submits", "submitted", "submitting"], answer: 0, info: "Mandative subjunctive setelah 'recommended that' memakai bare infinitive (submit)." },
+      { id: 79, level: 'Master', cat: 'Usage', q: "Pilih penggunaan 'fewer' vs 'less' yang tepat:", options: ["There were fewer errors in her second recording.", "There were less errors in her second recording.", "There was fewer water in the bottle.", "We need fewer information today."], answer: 0, info: "'Fewer' untuk benda jamak terhitung (errors); 'less' untuk benda tak terhitung." },
+      { id: 80, level: 'Master', cat: 'Usage', q: "Perbedaan tepat antara 'affect' dan 'effect' tampak pada kalimat...", options: ["Stress can affect your voice, creating a noticeable effect.", "Stress can effect your voice, creating a noticeable affect.", "Stress can affect your voice, creating a noticeable affect.", "Stress can effect your voice, creating a noticeable effect."], answer: 0, info: "'Affect' umumnya kata kerja (memengaruhi), sedangkan 'effect' kata benda (dampak)." },
+      { id: 81, level: 'Master', cat: 'Idiom', q: "Arti idiom 'hit the nail on the head' dalam diskusi adalah...", options: ["menjelaskan inti persoalan dengan sangat tepat", "memukul paku dengan palu", "membuat kesalahan fatal", "menunda keputusan penting"], answer: 0, info: "'Hit the nail on the head' berarti tepat sasaran dalam analisis atau jawaban." },
+      { id: 82, level: 'Master', cat: 'Grammar', q: "Lengkapi inversi formal: 'Not only ___ fluently, but she also writes persuasively.'", options: ["does she speak", "she speaks", "she does speak", "did she spoke"], answer: 0, info: "'Not only' di awal kalimat diikuti inversi auxiliary ('does she speak')." },
+      { id: 83, level: 'Master', cat: 'Vocabulary', q: "Arti kata 'articulate' sebagai kata sifat (adjective) adalah...", options: ["mampu mengungkapkan gagasan secara jelas dan terstruktur", "berbicara terlalu pelan", "menghafal teks tanpa paham", "menghindari kontak mata"], answer: 0, info: "Pembicara yang 'articulate' menyampaikan ide secara jernih dan efektif." },
+      { id: 84, level: 'Master', cat: 'Grammar', q: "Pilih kalimat dengan mixed conditional yang tepat:", options: ["If I had studied medicine, I would be a doctor now.", "If I studied medicine, I would have been a doctor now.", "If I had studied medicine, I will be a doctor now.", "If I study medicine, I would be a doctor now."], answer: 0, info: "Mixed conditional menghubungkan kondisi lampau (had V3) dengan dampak kini (would + V1)." },
+      { id: 85, level: 'Master', cat: 'Speaking', q: "Frasa paling elegan untuk menyanggah argumen dalam debat akademik adalah...", options: ["While that perspective has merit, the evidence suggests otherwise.", "That perspective is completely foolish.", "I totally reject everything you said.", "No, your evidence is wrong and weak."], answer: 0, info: "Mengakui nilai argumen lawan sebelum menyajikan bukti tandingan meningkatkan kredibilitas." },
+      { id: 86, level: 'Master', cat: 'Grammar', q: "Pilih penggunaan 'whom' yang tepat dalam bahasa Inggris formal:", options: ["To whom should I address this proposal?", "Whom is leading the seminar today?", "She is the speaker whom inspired us.", "Whom called you earlier?"], answer: 0, info: "'Whom' dipakai sebagai objek kata kerja atau objek preposisi ('To whom')." },
+      { id: 87, level: 'Master', cat: 'Pronunciation', q: "Kata mana yang pelafalannya TIDAK mengikuti ejaan harfiah dan dibaca /kjuː/?", options: ["queue", "query", "quest", "quilt"], answer: 0, info: "'Queue' (antrean) dilafalkan /kjuː/, sama seperti huruf 'Q'." },
+      { id: 88, level: 'Master', cat: 'Idiom', q: "Makna dari idiom 'on the same page' dalam kerja tim adalah...", options: ["memiliki pemahaman dan tujuan yang selaras", "membaca halaman buku yang sama persis", "bekerja di ruangan yang sempit", "menulis laporan di satu kertas"], answer: 0, info: "'Let's make sure we are on the same page' berarti memastikan semua sepaham." },
+      { id: 89, level: 'Master', cat: 'Grammar', q: "Pilih kalimat dengan participle clause yang bebas dari dangling modifier:", options: ["Having reviewed the feedback, Dina revised her speech.", "Having reviewed the feedback, the speech was revised.", "Walking into the hall, the microphone fell down.", "Reading the script quickly, the sentences seemed unclear."], answer: 0, info: "Subjek klausa utama ('Dina') harus pelaku yang sama dengan participle ('Having reviewed')." },
+      { id: 90, level: 'Master', cat: 'Vocabulary', q: "Sinonim tingkat lanjut (C1/C2) untuk 'very important' adalah...", options: ["pivotal", "trivial", "vague", "redundant"], answer: 0, info: "'Pivotal' berarti sangat menentukan atau krusial." },
+      { id: 91, level: 'Master', cat: 'Grammar', q: "Pilih bentuk yang tepat: 'Had I known about the deadline, I ___ sooner.'", options: ["would have started", "will start", "started", "would start"], answer: 0, info: "'Had I known...' adalah bentuk inversi formal dari 'If I had known...'." },
+      { id: 92, level: 'Master', cat: 'Usage', q: "Kalimat mana yang menggunakan 'lie' (berbaring) dalam bentuk lampau secara tepat?", options: ["After the long rehearsal, he lay down to rest.", "After the long rehearsal, he laid down to rest.", "After the long rehearsal, he lied down to rest.", "After the long rehearsal, he laying down to rest."], answer: 0, info: "'Lie' (berbaring) bentuk lampaunya 'lay'; 'lay' (meletakkan) bentuk lampaunya 'laid'." },
+      { id: 93, level: 'Master', cat: 'Speaking', q: "Strategi terbaik saat lupa satu kata bahasa Inggris di tengah wawancara adalah...", options: ["Memparafrasekan maknanya dengan kata lain yang dikenal", "Berhenti total dan diam selama 10 detik", "Langsung mengakhiri wawancara", "Mengulang satu kata yang sama terus-menerus"], answer: 0, info: "Paraphrasing (circumlocution) adalah indikator kelancaran tingkat tinggi (IELTS/TOEFL)." },
+      { id: 94, level: 'Master', cat: 'Vocabulary', q: "Arti dari 'nuance' dalam komunikasi profesional adalah...", options: ["perbedaan makna atau nada yang halus namun penting", "kesalahan tata bahasa yang berat", "pengulangan kalimat yang tidak perlu", "suara bising dari latar belakang"], answer: 0, info: "Memahami 'nuance' membantu memilih diksi yang tepat sesuai konteks." },
+      { id: 95, level: 'Master', cat: 'Grammar', q: "Lengkapi kalimat: 'Scarcely ___ the presentation begun when the projector failed.'", options: ["had", "did", "was", "has"], answer: 0, info: "Struktur formal: 'Scarcely had + subject + V3 + when + past simple'." },
+      { id: 96, level: 'Master', cat: 'Idiom', q: "Arti idiom 'play it by ear' adalah...", options: ["menyesuaikan langkah secara fleksibel mengikuti situasi", "mendengarkan musik dengan earphone", "menghafal naskah kata demi kata", "mengabaikan saran audiens"], answer: 0, info: "'Play it by ear' berarti bersikap adaptif tanpa rencana yang terlalu kaku." },
+      { id: 97, level: 'Master', cat: 'Pronunciation', q: "Pada kata benda 'record' (rekaman) vs kata kerja 'record' (merekam), letak stres yang tepat adalah...", options: ["RE-cord (noun) vs re-CORD (verb)", "re-CORD (noun) vs RE-cord (verb)", "Keduanya ditekan di suku kata pertama", "Keduanya ditekan di suku kata kedua"], answer: 0, info: "Banyak kata 2 suku kata bahasa Inggris membedakan noun (stres awal) dan verb (stres akhir)." },
+      { id: 98, level: 'Master', cat: 'Grammar', q: "Pilih kalimat dengan cleft sentence untuk menyoroti penyebab utama:", options: ["It was consistent daily practice that transformed her confidence.", "It was consistent daily practice who transformed her confidence.", "There was consistent daily practice that transformed her confidence.", "What consistent daily practice transformed her confidence."], answer: 0, info: "It-cleft ('It was X that ...') dipakai untuk memberi penekanan kuat pada unsur tertentu." },
+      { id: 99, level: 'Master', cat: 'Vocabulary', q: "Arti kata 'concise' dalam 'Keep your answer concise' adalah...", options: ["ringkas, padat, dan langsung ke inti", "panjang lebar dan berputar-putar", "terlalu santai dan tidak formal", "penuh istilah teknis yang rumit"], answer: 0, info: "'Concise' berarti menyampaikan informasi penting secara hemat kata tanpa bertele-tele." },
+      { id: 100, level: 'Master', cat: 'Speaking', q: "Ciri utama pembicara bahasa Inggris tingkat Master (C2) saat presentasi adalah...", options: ["Mampu menyusun argumen runtut, intonasi alami, dan adaptif terhadap pertanyaan spontan", "Berbicara secepat mungkin tanpa jeda napas", "Menggunakan kata sulit meski tidak sesuai konteks", "Membaca seluruh slide dari awal sampai akhir"], answer: 0, info: "Penguasaan tingkat Master memadukan kejelasan gagasan, ketepatan nuansa, dan fleksibilitas spontan." }
+    ];
 
     // =========================================================================
     // 2. HELPER UI, LOGO & SPEECH SYNTHESIS
@@ -1953,9 +1992,65 @@
       return list[state.selectedTopicIndex] || list[0];
     }
 
+    function shuffleArray(items) {
+      const arr = [...items];
+      for (let i = arr.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function randomizeQuizQuestion(raw) {
+      const correctText = raw.options[raw.answer];
+      const shuffledOptions = shuffleArray(raw.options);
+      return {
+        ...raw,
+        options: shuffledOptions,
+        answer: shuffledOptions.indexOf(correctText)
+      };
+    }
+
+    function buildQuizSession(tier = state.quiz.selectedTier, shuffleOrder = state.quiz.shuffleQuestions) {
+      const chosenTier = tier || state.user.level || 'Pemula';
+      const pool = chosenTier === 'Semua'
+        ? QUIZ_BANK_100
+        : QUIZ_BANK_100.filter((item) => item.level === chosenTier);
+      const ordered = shuffleOrder ? shuffleArray(pool) : pool;
+      return ordered.map(randomizeQuizQuestion);
+    }
+
     function getActiveQuizQuestions() {
-      const level = state.user.level || 'Pemula';
-      return state.quiz.questionsByLevel[level] || state.quiz.questionsByLevel.Pemula;
+      if (!Array.isArray(state.quiz.questions) || state.quiz.questions.length === 0) {
+        state.quiz.questions = buildQuizSession(state.quiz.selectedTier || state.user.level || 'Pemula', state.quiz.shuffleQuestions);
+      }
+      return state.quiz.questions;
+    }
+
+    function loadQuizProgress() {
+      const key = `speakup_quiz_progress_${state.user.id || 'guest'}`;
+      try {
+        const raw = safeStorageGet(key);
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (parsed && Array.isArray(parsed.completedIds)) {
+          state.quiz.completedIds = [...new Set(parsed.completedIds.map(Number).filter((n) => n >= 1 && n <= QUIZ_BANK_100.length))];
+          state.quiz.bestCombo = Number(parsed.bestCombo) || 0;
+        } else {
+          state.quiz.completedIds = [];
+          state.quiz.bestCombo = 0;
+        }
+      } catch {
+        state.quiz.completedIds = [];
+        state.quiz.bestCombo = 0;
+      }
+    }
+
+    function saveQuizProgress() {
+      const key = `speakup_quiz_progress_${state.user.id || 'guest'}`;
+      safeStorageSet(key, JSON.stringify({
+        completedIds: state.quiz.completedIds,
+        bestCombo: state.quiz.bestCombo
+      }));
     }
 
     function loadPracticeHistory() {
@@ -1994,7 +2089,13 @@
       };
       state.accounts = [state.user];
       state.topics = getActiveTopics();
-      state.quiz.questions = getActiveQuizQuestions();
+      state.quiz.selectedTier = state.user.level || 'Pemula';
+      state.quiz.questions = buildQuizSession(state.quiz.selectedTier, state.quiz.shuffleQuestions);
+      state.quiz.currentIndex = 0;
+      state.quiz.score = 0;
+      state.quiz.combo = 0;
+      state.quiz.answered = null;
+      loadQuizProgress();
       loadPracticeHistory();
     }
 
@@ -2655,8 +2756,8 @@
                   </svg>
                 </div>
                 <div>
-                  <h4 class="font-display text-sm font-bold text-slate-900">Kuis cepat (${escapeHtml(state.user.level)})</h4>
-                  <p class="text-xs text-slate-500 mt-0.5">Uji pelafalan & grammar sesuai levelmu</p>
+                  <h4 class="font-display text-sm font-bold text-slate-900">Kuis cepat (${state.quiz.completedIds.length}/${QUIZ_BANK_100.length} Kuis)</h4>
+                  <p class="text-xs text-slate-500 mt-0.5">4 level hingga Master - opsi jawaban acak</p>
                 </div>
               </div>
               <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -3358,65 +3459,148 @@
     // 11. TAHAP 4E: KUIS CEPAT & PROFIL
     // =========================================================================
     function renderQuizScreen() {
-      state.quiz.questions = getActiveQuizQuestions();
       const qState = state.quiz;
-      const isFinished = qState.currentIndex >= qState.questions.length;
+      const questions = getActiveQuizQuestions();
+      const totalAll = QUIZ_BANK_100.length;
+      const masteredCount = qState.completedIds.length;
+      const masteredPct = Math.round((masteredCount / totalAll) * 100);
+      const isFinished = qState.currentIndex >= questions.length;
       const quizContainer = document.getElementById('screen-container');
       if (quizContainer && state.currentScreen === 'quiz' && qState.answered === null) quizContainer.scrollTop = 0;
 
-      if (isFinished) {
-        return `
-          <div class="screen-enter min-h-full flex flex-col items-center justify-center p-6 text-center">
-            <div class="w-20 h-20 rounded-3xl bg-amber-100 text-amber-600 flex items-center justify-center mb-4">
-              <svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+      const tierTabs = [
+        { id: 'Semua', label: 'Semua (100)' },
+        { id: 'Pemula', label: 'Pemula (1-25)' },
+        { id: 'Menengah', label: 'Menengah (26-50)' },
+        { id: 'Lanjut', label: 'Lanjut (51-75)' },
+        { id: 'Master', label: 'Master (76-100)' }
+      ];
+
+      const tierBar = `
+        <div class="space-y-2.5">
+          <div class="flex items-center justify-between">
+            <div>
+              <h1 class="font-display text-xl font-extrabold text-slate-900">Kuis Cepat</h1>
+              <p class="text-[11px] text-slate-500">Progres total: ${masteredCount}/${totalAll} kuis dikuasai (${masteredPct}%)</p>
             </div>
-            <h2 class="font-display text-2xl font-extrabold text-slate-900">Kuis Selesai!</h2>
-            <p class="text-xs text-slate-500 mt-1 mb-6">Kamu menjawab benar ${qState.score} dari ${qState.questions.length} soal</p>
-            <div class="flex gap-3 w-full">
-              <button onclick="resetQuiz()" class="flex-1 py-3.5 rounded-2xl border border-slate-200 bg-white font-bold text-sm text-slate-700">
-                Ulangi Kuis
+            <button onclick="toggleQuizOrder()"
+              class="px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition-colors ${qState.shuffleQuestions ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}">
+              ${qState.shuffleQuestions ? 'Urutan: Acak' : 'Urutan: 1-100'}
+            </button>
+          </div>
+
+          <div class="h-2 rounded-full bg-slate-200 overflow-hidden">
+            <div class="h-full rounded-full bg-gradient-to-r from-brand-500 to-mint-500 transition-all duration-300" style="width: ${masteredPct}%"></div>
+          </div>
+
+          <div class="flex gap-1.5 overflow-x-auto pb-1">
+            ${tierTabs.map((tab) => `
+              <button onclick="setQuizTier('${tab.id}')"
+                class="px-3 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap border transition-all ${qState.selectedTier === tab.id ? 'bg-brand-600 text-white border-brand-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}">
+                ${tab.label}
               </button>
-              <button onclick="navigate('home')" class="flex-1 py-3.5 rounded-2xl bg-brand-600 text-white font-bold text-sm">
-                Ke Beranda
-              </button>
+            `).join('')}
+          </div>
+        </div>
+      `;
+
+      if (isFinished) {
+        const accuracy = questions.length > 0 ? Math.round((qState.score / questions.length) * 100) : 0;
+        const currentTierIdx = QUIZ_TIERS.indexOf(qState.selectedTier);
+        const nextTier = currentTierIdx >= 0 && currentTierIdx < QUIZ_TIERS.length - 1 ? QUIZ_TIERS[currentTierIdx + 1] : null;
+        return `
+          <div class="screen-enter min-h-full p-5 flex flex-col justify-between">
+            ${tierBar}
+            <div class="my-auto py-8 flex flex-col items-center text-center">
+              <div class="w-20 h-20 rounded-3xl bg-amber-100 text-amber-600 flex items-center justify-center mb-4">
+                <svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 class="font-display text-2xl font-extrabold text-slate-900">Sesi Kuis Selesai!</h2>
+              <p class="text-xs text-slate-500 mt-1">Level ${escapeHtml(qState.selectedTier)} - Akurasi ${accuracy}% (${qState.score}/${questions.length} benar)</p>
+              <div class="grid grid-cols-2 gap-2.5 w-full mt-5 mb-6">
+                <div class="bg-white rounded-2xl p-3 border border-slate-200">
+                  <p class="text-[11px] text-slate-400 font-semibold">Total Dikuasai</p>
+                  <p class="font-display text-lg font-extrabold text-brand-700">${masteredCount} / ${totalAll}</p>
+                </div>
+                <div class="bg-white rounded-2xl p-3 border border-slate-200">
+                  <p class="text-[11px] text-slate-400 font-semibold">Kombo Terbaik</p>
+                  <p class="font-display text-lg font-extrabold text-mint-700">${qState.bestCombo}x</p>
+                </div>
+              </div>
+              <div class="space-y-2.5 w-full">
+                ${nextTier ? `
+                  <button onclick="setQuizTier('${nextTier}')" class="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-md shadow-brand-600/20">
+                    Naik ke Level ${nextTier}
+                  </button>
+                ` : ''}
+                <div class="flex gap-3 w-full">
+                  <button onclick="resetQuiz()" class="flex-1 py-3.5 rounded-2xl border border-slate-200 bg-white font-bold text-sm text-slate-700">
+                    Ulangi & Acak Opsi
+                  </button>
+                  <button onclick="navigate('home')" class="flex-1 py-3.5 rounded-2xl ${nextTier ? 'bg-slate-800 text-white' : 'bg-brand-600 text-white'} font-bold text-sm">
+                    Ke Beranda
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         `;
       }
 
-      const currentQ = qState.questions[qState.currentIndex];
+      const currentQ = questions[qState.currentIndex];
+      const optionLetters = ['A', 'B', 'C', 'D'];
+      const tierBadgeColor = currentQ.level === 'Master'
+        ? 'bg-purple-100 text-purple-700'
+        : currentQ.level === 'Lanjut'
+          ? 'bg-amber-100 text-amber-700'
+          : currentQ.level === 'Menengah'
+            ? 'bg-brand-100 text-brand-700'
+            : 'bg-mint-100 text-mint-700';
 
       return `
-        <div class="screen-enter p-5 space-y-5">
-          <div class="flex items-center justify-between">
-            <h1 class="font-display text-xl font-extrabold text-slate-900">Kuis Cepat</h1>
-            <span class="px-3 py-1 rounded-full bg-brand-50 text-brand-600 text-xs font-bold">
-              Soal ${qState.currentIndex + 1}/${qState.questions.length}
-            </span>
+        <div class="screen-enter p-5 space-y-4">
+          ${tierBar}
+
+          <div class="flex items-center justify-between bg-white rounded-2xl px-3.5 py-2.5 border border-slate-200/80">
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 rounded-lg text-[11px] font-bold ${tierBadgeColor}">${escapeHtml(currentQ.level)}</span>
+              <span class="text-[11px] font-semibold text-slate-500">Kuis #${currentQ.id} - ${escapeHtml(currentQ.cat)}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              ${qState.combo >= 2 ? `<span class="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-700 text-[11px] font-bold">Kombo ${qState.combo}x</span>` : ''}
+              <span class="text-xs font-bold text-brand-600">${qState.currentIndex + 1}/${questions.length}</span>
+            </div>
           </div>
 
           <div class="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm">
             <p class="font-display text-base font-bold text-slate-900 leading-snug mb-5">
-              ${currentQ.q}
+              ${escapeHtml(currentQ.q)}
             </p>
 
             <div class="space-y-2.5">
               ${currentQ.options.map((opt, idx) => {
         let btnClass = 'border-slate-200 bg-slate-50/70 hover:bg-slate-100 text-slate-800';
+        let badgeClass = 'bg-white border-slate-200 text-slate-600';
         if (qState.answered !== null) {
           if (idx === currentQ.answer) {
             btnClass = 'border-mint-500 bg-mint-50 text-mint-800 font-bold';
+            badgeClass = 'bg-mint-600 border-mint-600 text-white';
           } else if (idx === qState.answered) {
             btnClass = 'border-rose-500 bg-rose-50 text-rose-700';
+            badgeClass = 'bg-rose-600 border-rose-600 text-white';
           }
         }
         return `
                   <button onclick="answerQuiz(${idx})" ${qState.answered !== null ? 'disabled' : ''}
-                    class="w-full p-3.5 rounded-2xl border text-left text-sm font-medium transition-all flex items-center justify-between ${btnClass}">
-                    <span>${opt}</span>
-                    ${qState.answered !== null && idx === currentQ.answer ? '<span class="text-xs font-bold">Benar</span>' : ''}
+                    class="w-full p-3.5 rounded-2xl border text-left text-sm font-medium transition-all flex items-center justify-between gap-3 ${btnClass}">
+                    <span class="flex items-center gap-2.5 min-w-0">
+                      <span class="w-6 h-6 rounded-lg border text-xs font-extrabold flex items-center justify-center shrink-0 ${badgeClass}">${optionLetters[idx] || idx + 1}</span>
+                      <span class="leading-snug">${escapeHtml(opt)}</span>
+                    </span>
+                    ${qState.answered !== null && idx === currentQ.answer ? '<span class="text-xs font-bold shrink-0">Benar</span>' : ''}
+                    ${qState.answered !== null && idx === qState.answered && idx !== currentQ.answer ? '<span class="text-xs font-bold shrink-0">Salah</span>' : ''}
                   </button>
                 `;
       }).join('')}
@@ -3424,10 +3608,10 @@
 
             ${qState.answered !== null ? `
               <div class="mt-4 p-3.5 rounded-2xl bg-brand-50 text-xs text-brand-800 leading-relaxed">
-                <strong>Catatan Coach:</strong> ${currentQ.info}
+                <strong>Catatan Coach:</strong> ${escapeHtml(currentQ.info)}
               </div>
-              <button onclick="nextQuizQuestion()" class="w-full mt-4 py-3 rounded-2xl bg-brand-600 text-white font-bold text-sm">
-                Lanjut
+              <button onclick="nextQuizQuestion()" class="w-full mt-4 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm transition-all">
+                ${qState.currentIndex + 1 < questions.length ? 'Soal Berikutnya' : 'Lihat Hasil Kuis'}
               </button>
             ` : ''}
           </div>
@@ -3435,13 +3619,44 @@
       `;
     }
 
+    function setQuizTier(tier) {
+      state.quiz.selectedTier = tier;
+      state.quiz.questions = buildQuizSession(tier, state.quiz.shuffleQuestions);
+      state.quiz.currentIndex = 0;
+      state.quiz.score = 0;
+      state.quiz.combo = 0;
+      state.quiz.answered = null;
+      render();
+    }
+
+    function toggleQuizOrder() {
+      state.quiz.shuffleQuestions = !state.quiz.shuffleQuestions;
+      state.quiz.questions = buildQuizSession(state.quiz.selectedTier, state.quiz.shuffleQuestions);
+      state.quiz.currentIndex = 0;
+      state.quiz.score = 0;
+      state.quiz.combo = 0;
+      state.quiz.answered = null;
+      showToast(state.quiz.shuffleQuestions ? 'Urutan soal & opsi diacak.' : 'Urutan soal berjenjang 1-100 (opsi tetap acak).', 'info');
+      render();
+    }
+
     function answerQuiz(idx) {
       if (state.quiz.answered !== null) return;
+      const currentQ = state.quiz.questions[state.quiz.currentIndex];
+      if (!currentQ) return;
       state.quiz.answered = idx;
-      if (idx === state.quiz.questions[state.quiz.currentIndex].answer) {
+      if (idx === currentQ.answer) {
         state.quiz.score += 1;
-        state.user.newWords += 1;
-        persistProgress();
+        state.quiz.combo += 1;
+        if (state.quiz.combo > state.quiz.bestCombo) state.quiz.bestCombo = state.quiz.combo;
+        if (!state.quiz.completedIds.includes(currentQ.id)) {
+          state.quiz.completedIds.push(currentQ.id);
+          state.user.newWords += 1;
+          persistProgress();
+        }
+        saveQuizProgress();
+      } else {
+        state.quiz.combo = 0;
       }
       render();
     }
@@ -3453,8 +3668,10 @@
     }
 
     function resetQuiz() {
+      state.quiz.questions = buildQuizSession(state.quiz.selectedTier, state.quiz.shuffleQuestions);
       state.quiz.currentIndex = 0;
       state.quiz.score = 0;
+      state.quiz.combo = 0;
       state.quiz.answered = null;
       render();
     }
@@ -3585,9 +3802,11 @@
       state.user.level = lvl;
       state.selectedTopicIndex = 0;
       state.topics = getActiveTopics();
-      state.quiz.questions = getActiveQuizQuestions();
+      state.quiz.selectedTier = lvl;
+      state.quiz.questions = buildQuizSession(lvl, state.quiz.shuffleQuestions);
       state.quiz.currentIndex = 0;
       state.quiz.score = 0;
+      state.quiz.combo = 0;
       state.quiz.answered = null;
       try {
         await saveAuthenticatedProfile({ level: lvl });
