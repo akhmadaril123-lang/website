@@ -809,32 +809,71 @@ function createApp(options = {}) {
 
     const isNewUser = !user;
     const linkSub = googleSub || `google-${identity.email}`;
+    let warning = null;
     if (!user) {
       const randomPassword = crypto.randomBytes(24).toString('hex');
       const passwordHash = await hashPassword(randomPassword);
-      user = await store.createUser({
+      const baseUser = {
         name,
         email: identity.email,
         phone: null,
         password_hash: passwordHash,
         education,
-        google_linked: true,
-        google_email: identity.email,
-        google_sub: linkSub,
         created_at: Date.now()
-      });
+      };
+      try {
+        user = await store.createUser({
+          ...baseUser,
+          google_linked: true,
+          google_email: identity.email,
+          google_sub: linkSub
+        });
+      } catch (error) {
+        // Bisa terjadi jika dua permintaan login berjalan bersamaan.
+        if (isUniqueConstraintError(error)) {
+          user = await store.findUserByIdentifier(identity);
+        }
+        if (!user) {
+          // Backend Google Sheets lama (code.gs belum diperbarui) bisa menolak
+          // kolom Google. Login tetap dilanjutkan tanpa tautan Google.
+          console.error('Gagal membuat akun Google dengan kolom Google:', error.message);
+          try {
+            user = await store.createUser(baseUser);
+            warning = 'Akun berhasil dibuat, tetapi tautan Google belum tersimpan. Deploy ulang code.gs agar kolom Google tersedia.';
+          } catch (retryError) {
+            console.error('Gagal membuat akun Google:', retryError.message);
+            throw retryError;
+          }
+        }
+      }
     } else {
       const updates = {};
       if (!Number(user.google_linked)) updates.google_linked = 1;
       if (user.google_email !== identity.email) updates.google_email = identity.email;
       if (linkSub && user.google_sub !== linkSub) updates.google_sub = linkSub;
       if (Object.keys(updates).length > 0) {
-        user = await store.updateUser(user.id, updates);
+        try {
+          user = await store.updateUser(user.id, updates);
+        } catch (error) {
+          // Jangan gagalkan login hanya karena penautan Google tidak tersimpan.
+          console.error('Gagal menautkan akun Google ke pengguna lama:', error.message);
+          warning = 'Berhasil masuk, tetapi tautan Google belum tersimpan. Deploy ulang code.gs agar kolom Google tersedia.';
+          try {
+            user = await store.updateUser(user.id, { google_email: identity.email });
+          } catch {
+            user = (await store.findUserById(user.id)) || user;
+          }
+        }
       }
     }
 
+    if (!user) {
+      return res.status(500).json({ error: 'Akun Google tidak dapat dibuat di database.' });
+    }
+
     await startSession(user.id, res);
-    res.status(isNewUser ? 201 : 200).json({ user: toPublicUser(user), isNewUser });
+    console.log(`[Google Login] ${identity.email} - ${isNewUser ? 'akun baru' : 'akun lama'}`);
+    res.status(isNewUser ? 201 : 200).json({ user: toPublicUser(user), isNewUser, warning });
   });
 
   app.post('/api/auth/google/unlink', requireSession, async (req, res) => {
