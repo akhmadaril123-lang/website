@@ -816,7 +816,14 @@
         stopRecording(true);
       }
       if (window.speechSynthesis) window.speechSynthesis.cancel();
-      if (state.googleModal.isOpen) closeGoogleAccountModal();
+      if (state.googleModal.isOpen) {
+        state.googleModal.isOpen = false;
+        state.googleModal.step = 'picker';
+        state.googleModal.pendingCredential = '';
+        state.googleModal.statusMessage = '';
+        const modal = document.getElementById('google-modal');
+        if (modal) modal.classList.add('hidden');
+      }
       state.currentScreen = screen;
       render(true);
     }
@@ -1327,8 +1334,13 @@
         const education = ['SMA', 'SMK', 'SMP', 'Umum'].includes(body.education) ? body.education : 'SMA';
         if (!name || name.length > 80) throw new Error('Data akun Google tidak valid.');
 
-        let user = await callDirectAppsScript('findUserByGoogleSub', { googleSub });
-        if (!user) user = await callDirectAppsScript('findUserByIdentifier', { email, phone: null });
+        let user = null;
+        try {
+          user = await callDirectAppsScript('findUserByGoogleSub', { googleSub });
+        } catch (err) {
+          if (!err || !/Action tidak dikenal/i.test(err.message)) throw err;
+        }
+        if (!user) user = await callDirectAppsScript('findUserByIdentifier', { identity: { email, phone: null } });
         const isNewUser = !user;
         if (!user) {
           user = await callDirectAppsScript('createUser', {
@@ -1410,16 +1422,20 @@
           window.crypto.getRandomValues(bytes);
           const token = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
           const now = Date.now();
-          await callDirectAppsScript('createPasswordReset', {
-            reset: {
-              token_hash: await sha256Hex(token),
-              user_id: user.id,
-              expires_at: now + 30 * 60 * 1000,
-              created_at: now
-            },
-            now
-          });
-          result.resetUrl = `${window.location.origin}${window.location.pathname}?reset=${token}`;
+          try {
+            await callDirectAppsScript('createPasswordReset', {
+              reset: {
+                token_hash: await sha256Hex(token),
+                user_id: user.id,
+                expires_at: now + 30 * 60 * 1000,
+                created_at: now
+              },
+              now
+            });
+            result.resetUrl = `${window.location.origin}${window.location.pathname}?reset=${token}`;
+          } catch (err) {
+            if (!err || !/Action tidak dikenal/i.test(err.message)) throw err;
+          }
         }
         return result;
       }

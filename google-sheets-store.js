@@ -94,8 +94,15 @@ function createGoogleAppsScriptStore({ scriptUrl, fetchImpl = fetch }) {
 
     async findUserByGoogleSub(googleSub) {
       if (!googleSub) return undefined;
-      const user = await callAppsScript('findUserByGoogleSub', { googleSub: String(googleSub) });
-      return user ? normalizeUser(user) : undefined;
+      try {
+        const user = await callAppsScript('findUserByGoogleSub', { googleSub: String(googleSub) });
+        return user ? normalizeUser(user) : undefined;
+      } catch (error) {
+        if (error && /Action tidak dikenal/i.test(error.message)) {
+          return undefined;
+        }
+        throw error;
+      }
     },
 
     async createUser(user) {
@@ -139,20 +146,38 @@ function createGoogleAppsScriptStore({ scriptUrl, fetchImpl = fetch }) {
     },
 
     async deleteUserSessions(userId) {
-      await callAppsScript('deleteUserSessions', { userId: String(userId) });
+      try {
+        await callAppsScript('deleteUserSessions', { userId: String(userId) });
+      } catch (error) {
+        if (!error || !/Action tidak dikenal/i.test(error.message)) throw error;
+      }
     },
 
     async createPasswordReset(reset, now) {
-      await callAppsScript('createPasswordReset', { reset, now });
+      try {
+        await callAppsScript('createPasswordReset', { reset, now });
+      } catch (error) {
+        if (!error || !/Action tidak dikenal/i.test(error.message)) throw error;
+      }
     },
 
     async findPasswordReset(tokenHash, now) {
-      return callAppsScript('findPasswordReset', { tokenHash, now });
+      try {
+        return await callAppsScript('findPasswordReset', { tokenHash, now });
+      } catch (error) {
+        if (error && /Action tidak dikenal/i.test(error.message)) return null;
+        throw error;
+      }
     },
 
     async consumePasswordReset(tokenHash, now) {
-      const result = await callAppsScript('consumePasswordReset', { tokenHash, now });
-      return Boolean(result && result.success);
+      try {
+        const result = await callAppsScript('consumePasswordReset', { tokenHash, now });
+        return Boolean(result && result.success);
+      } catch (error) {
+        if (error && /Action tidak dikenal/i.test(error.message)) return false;
+        throw error;
+      }
     },
 
     close() {}
