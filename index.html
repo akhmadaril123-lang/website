@@ -254,6 +254,76 @@
         scroll-behavior: auto !important;
       }
     }
+
+    /* 3D Flashcard Flip */
+    .flip-scene { perspective: 1000px; }
+    .flip-card-inner {
+      position: relative;
+      width: 100%;
+      min-height: 220px;
+      transition: transform 0.52s cubic-bezier(0.22, 1, 0.36, 1);
+      transform-style: preserve-3d;
+    }
+    .flip-card-inner.is-flipped { transform: rotateY(180deg); }
+    .flip-card-face {
+      position: absolute;
+      inset: 0;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    .flip-card-back { transform: rotateY(180deg); }
+
+    /* Mode Gelap Modern (Dark Mode) */
+    body.dark-mode {
+      background: #020617 !important;
+      color: #e2e8f0 !important;
+    }
+    body.dark-mode #app-shell {
+      background: #0f172a !important;
+      border-color: #334155 !important;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65) !important;
+    }
+    body.dark-mode #screen-container {
+      background: #0b1120 !important;
+    }
+    body.dark-mode #bottom-nav {
+      background: #0f172a !important;
+      border-color: #1e293b !important;
+    }
+    body.dark-mode .bg-white {
+      background-color: #1e293b !important;
+    }
+    body.dark-mode .bg-slate-50,
+    body.dark-mode .bg-slate-50\/60,
+    body.dark-mode .bg-slate-50\/70,
+    body.dark-mode .bg-slate-100 {
+      background-color: #0f172a !important;
+    }
+    body.dark-mode .border-slate-200,
+    body.dark-mode .border-slate-200\/80,
+    body.dark-mode .border-slate-200\/90,
+    body.dark-mode .border-slate-100 {
+      border-color: #334155 !important;
+    }
+    body.dark-mode .text-slate-900,
+    body.dark-mode .text-slate-800 {
+      color: #f8fafc !important;
+    }
+    body.dark-mode .text-slate-700,
+    body.dark-mode .text-slate-600 {
+      color: #cbd5e1 !important;
+    }
+    body.dark-mode .text-slate-500,
+    body.dark-mode .text-slate-400 {
+      color: #94a3b8 !important;
+    }
+    body.dark-mode input,
+    body.dark-mode select,
+    body.dark-mode textarea {
+      background-color: #0f172a !important;
+      color: #f8fafc !important;
+      border-color: #334155 !important;
+    }
   </style>
 </head>
 
@@ -297,10 +367,10 @@
     </main>
 
     <!-- Bottom Navigation Bar (Muncul saat berada di Main App) -->
-    <nav id="bottom-nav" class="hidden bg-white border-t border-slate-200/80 px-2 py-2 pb-safe z-30">
-      <div class="grid grid-cols-4 gap-1">
+    <nav id="bottom-nav" class="hidden bg-white border-t border-slate-200/80 px-1.5 py-2 pb-safe z-30">
+      <div class="grid grid-cols-5 gap-1">
         <button onclick="navigate('home')" data-nav="home"
-          class="nav-btn flex flex-col items-center justify-center py-1.5 rounded-2xl text-xs font-medium transition-all">
+          class="nav-btn flex flex-col items-center justify-center py-1.5 rounded-2xl text-[11px] font-medium transition-all">
           <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round"
               d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -309,7 +379,7 @@
         </button>
 
         <button onclick="navigate('practice')" data-nav="practice"
-          class="nav-btn flex flex-col items-center justify-center py-1.5 rounded-2xl text-xs font-medium transition-all">
+          class="nav-btn flex flex-col items-center justify-center py-1.5 rounded-2xl text-[11px] font-medium transition-all">
           <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round"
               d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
@@ -317,8 +387,17 @@
           <span>Latihan</span>
         </button>
 
+        <button onclick="navigate('studio')" data-nav="studio"
+          class="nav-btn flex flex-col items-center justify-center py-1.5 rounded-2xl text-[11px] font-medium transition-all">
+          <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+          </svg>
+          <span>Studio</span>
+        </button>
+
         <button onclick="navigate('quiz')" data-nav="quiz"
-          class="nav-btn flex flex-col items-center justify-center py-1.5 rounded-2xl text-xs font-medium transition-all">
+          class="nav-btn flex flex-col items-center justify-center py-1.5 rounded-2xl text-[11px] font-medium transition-all">
           <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round"
               d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -327,7 +406,7 @@
         </button>
 
         <button onclick="navigate('profile')" data-nav="profile"
-          class="nav-btn flex flex-col items-center justify-center py-1.5 rounded-2xl text-xs font-medium transition-all">
+          class="nav-btn flex flex-col items-center justify-center py-1.5 rounded-2xl text-[11px] font-medium transition-all">
           <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round"
               d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -681,8 +760,248 @@
         answered: null,
         completedIds: [],
         questions: []
+      },
+      // Pengaturan tema, suara, dan kalimat latihan kustom
+      darkMode: false,
+      speechSettings: {
+        rate: 0.95, // 0.75, 0.95, 1.2
+        accent: 'en-US' // en-US, en-GB
+      },
+      customPromptMode: false,
+      customPromptText: '',
+      // State AI Roleplay Percakapan
+      roleplay: {
+        activeScenarioId: null,
+        stepIndex: 0,
+        messages: [],
+        completedScenarios: [],
+        isListening: false,
+        recognition: null
+      },
+      // State Flashcard Kosakata Pintar (Spaced Repetition)
+      vocab: {
+        filterLevel: 'Semua',
+        currentIndex: 0,
+        isFlipped: false,
+        masteredIds: [],
+        customCards: [],
+        showAddForm: false
+      },
+      // State Shadowing Studio
+      shadowing: {
+        selectedIndex: 0
       }
     };
+
+    const ROLEPLAY_SCENARIOS = [
+      {
+        id: 'school-intro',
+        title: 'Perkenalan di Kelas Baru',
+        level: 'Pemula',
+        partner: 'Teacher Sarah',
+        desc: 'Latih perkenalan diri, hobi, dan mata pelajaran favorit.',
+        turns: [
+          {
+            ai: "Welcome to our English class! Could you introduce yourself to everyone?",
+            idText: "Selamat datang di kelas bahasa Inggris! Bisa perkenalkan dirimu?",
+            suggestions: [
+              "Hello everyone, my name is Aril and I am happy to be here.",
+              "Hi, I am a student who loves learning English every day."
+            ],
+            tip: "Mulai dengan sapaan hangat seperti 'Hello everyone, my name is...' lalu sebutkan perasaan atau tujuanmu."
+          },
+          {
+            ai: "Great introduction! What subject do you enjoy the most at school?",
+            idText: "Perkenalan yang bagus! Mata pelajaran apa yang paling kamu sukai?",
+            suggestions: [
+              "I really enjoy English and science because they are very interesting.",
+              "My favorite subject is technology because I like building projects."
+            ],
+            tip: "Gunakan kata penghubung 'because' untuk memberi alasan yang jelas."
+          },
+          {
+            ai: "Awesome! Finally, what is your goal for speaking English this semester?",
+            idText: "Keren! Terakhir, apa targetmu dalam belajar speaking semester ini?",
+            suggestions: [
+              "I want to speak English fluently and confidently in front of the class.",
+              "My goal is to practice every day and improve my pronunciation."
+            ],
+            tip: "Kata 'fluently and confidently' sangat kuat untuk menyampaikan target belajarmu."
+          }
+        ]
+      },
+      {
+        id: 'cafe-order',
+        title: 'Memesan di Kafe Internasional',
+        level: 'Pemula',
+        partner: 'Barista Leo',
+        desc: 'Praktik memesan minuman, menanyakan menu, dan membayar sopan.',
+        turns: [
+          {
+            ai: "Hi there! Welcome to Sunrise Cafe. What can I get for you today?",
+            idText: "Halo! Selamat datang di Sunrise Cafe. Mau pesan apa hari ini?",
+            suggestions: [
+              "Hi! I would like an iced latte with less sugar, please.",
+              "Hello, could I have a cup of hot chocolate and a croissant?"
+            ],
+            tip: "Gunakan 'I would like...' atau 'Could I have...' agar terdengar sopan (hindari 'Give me...')."
+          },
+          {
+            ai: "Sure thing! Would you like that for here or to go?",
+            idText: "Baik! Diminum di sini atau dibawa pulang?",
+            suggestions: [
+              "For here, please. I want to sit near the window.",
+              "To go, please. I am heading to class soon."
+            ],
+            tip: "'For here' artinya makan/minum di tempat, 'to go' artinya dibawa pulang."
+          },
+          {
+            ai: "Your total is five dollars. How would you like to pay?",
+            idText: "Totalnya lima dolar. Ingin membayar dengan apa?",
+            suggestions: [
+              "I will pay by card, please. Thank you very much!",
+              "Can I pay with cash? Here you go, thank you."
+            ],
+            tip: "Ucapkan 'by card' atau 'with cash' diikuti 'Thank you'."
+          }
+        ]
+      },
+      {
+        id: 'scholarship-interview',
+        title: 'Wawancara Beasiswa Pelajar',
+        level: 'Menengah',
+        partner: 'Interviewer Dr. Maya',
+        desc: 'Jawab pertanyaan motivasi, kelebihan diri, dan rencana masa depan.',
+        turns: [
+          {
+            ai: "Thank you for joining this interview. Why are you applying for this scholarship?",
+            idText: "Terima kasih sudah hadir. Mengapa kamu melamar beasiswa ini?",
+            suggestions: [
+              "I am applying because I want to grow academically and contribute to my community.",
+              "This scholarship will help me develop leadership and communication skills."
+            ],
+            tip: "Fokus pada dampak dan kontribusi, bukan hanya kebutuhan pribadi."
+          },
+          {
+            ai: "What is your biggest strength as a student?",
+            idText: "Apa kekuatan terbesarmu sebagai seorang pelajar?",
+            suggestions: [
+              "My biggest strength is consistency; I stay committed to my daily study routine.",
+              "I work well in teams and enjoy solving complex problems creatively."
+            ],
+            tip: "Sertakan contoh konkret agar jawabanmu meyakinkan."
+          },
+          {
+            ai: "Where do you see yourself in the next five years?",
+            idText: "Bagaimana kamu melihat dirimu lima tahun ke depan?",
+            suggestions: [
+              "In five years, I hope to become a skilled professional who mentors younger students.",
+              "I plan to graduate with honors and build innovative solutions for education."
+            ],
+            tip: "Gunakan pola masa depan yang jelas: 'I hope to...' atau 'I plan to...'."
+          }
+        ]
+      },
+      {
+        id: 'class-presentation',
+        title: 'Presentasi Proyek & Tanya Jawab',
+        level: 'Lanjut',
+        partner: 'Moderator Kevin',
+        desc: 'Buka presentasi formal, jelaskan data, dan tanggapi pertanyaan audiens.',
+        turns: [
+          {
+            ai: "The floor is yours! Please open your presentation for the panel.",
+            idText: "Silakan mulai presentasimu di hadapan panelis.",
+            suggestions: [
+              "Good afternoon everyone. Today, I would like to present our project on smart learning.",
+              "Thank you for having me. Let me walk you through our key findings today."
+            ],
+            tip: "'I would like to present...' dan 'Let me walk you through...' adalah pembuka presentasi standar global."
+          },
+          {
+            ai: "Interesting data! Could you clarify what makes your approach more effective?",
+            idText: "Data yang menarik! Bisa jelaskan apa yang membuat pendekatanmu lebih efektif?",
+            suggestions: [
+              "That is a great question. Our approach combines daily audio practice with instant feedback.",
+              "Certainly. It focuses on active speaking rather than passive memorization."
+            ],
+            tip: "Awali jawaban Q&A dengan 'That is a great question' untuk memberi jeda berpikir yang elegan."
+          },
+          {
+            ai: "Thank you. Please give a concise closing statement.",
+            idText: "Terima kasih. Silakan berikan pernyataan penutup yang ringkas.",
+            suggestions: [
+              "In conclusion, small consistent practice builds lasting confidence. Thank you for listening.",
+              "To sum up, technology works best when it empowers daily habits. Thank you very much."
+            ],
+            tip: "Gunakan penanda penutup seperti 'In conclusion' atau 'To sum up'."
+          }
+        ]
+      },
+      {
+        id: 'airport-checkin',
+        title: 'Check-In Bandara Internasional',
+        level: 'Master',
+        partner: 'Agent Daniel',
+        desc: 'Simulasi perjalanan luar negeri, bagasi, dan permintaan kursi.',
+        turns: [
+          {
+            ai: "Good morning. May I see your passport and booking confirmation, please?",
+            idText: "Selamat pagi. Boleh saya lihat paspor dan bukti pemesanan Anda?",
+            suggestions: [
+              "Good morning! Here are my passport and flight confirmation.",
+              "Certainly, here you go. I am flying to Singapore today."
+            ],
+            tip: "Gunakan 'Here are...' untuk lebih dari satu dokumen."
+          },
+          {
+            ai: "Are you checking in any luggage today, and do you have a seat preference?",
+            idText: "Apakah ada bagasi tercatat hari ini, dan apakah ada preferensi kursi?",
+            suggestions: [
+              "Yes, just one suitcase. I would prefer a window seat if available.",
+              "No checked luggage, only a carry-on bag. An aisle seat would be wonderful."
+            ],
+            tip: "'Carry-on bag' = tas kabin, 'window seat' = kursi jendela, 'aisle seat' = kursi lorong."
+          },
+          {
+            ai: "You are all set! Your boarding gate is B12. Have a pleasant flight.",
+            idText: "Semua sudah siap! Gerbang keberangkatan Anda B12. Selamat menikmati penerbangan.",
+            suggestions: [
+              "Thank you so much for your help. Have a wonderful day!",
+              "I appreciate it. Could you point me toward security screening?"
+            ],
+            tip: "'I appreciate it' adalah ungkapan terima kasih tingkat lanjut yang sangat natural."
+          }
+        ]
+      }
+    ];
+
+    const VOCAB_DECK_DEFAULT = [
+      { id: 'v1', level: 'Pemula', word: 'Confidence', phonetic: 'kon-fi-dens', meaning: 'Kepercayaan diri', example: 'Daily practice builds my speaking confidence.' },
+      { id: 'v2', level: 'Pemula', word: 'Habit', phonetic: 'ha-bit', meaning: 'Kebiasaan', example: 'Reading for ten minutes is a great daily habit.' },
+      { id: 'v3', level: 'Pemula', word: 'Improve', phonetic: 'im-pruv', meaning: 'Meningkatkan / Memperbaiki', example: 'I want to improve my English pronunciation.' },
+      { id: 'v4', level: 'Pemula', word: 'Schedule', phonetic: 'ske-jul', meaning: 'Jadwal', example: 'I follow my study schedule every evening.' },
+      { id: 'v5', level: 'Pemula', word: 'Environment', phonetic: 'in-vai-ren-ment', meaning: 'Lingkungan', example: 'A supportive environment helps students grow.' },
+      { id: 'v6', level: 'Pemula', word: 'Polite', phonetic: 'pe-lait', meaning: 'Sopan', example: 'Always use polite phrases when asking for help.' },
+      { id: 'v7', level: 'Menengah', word: 'Consistent', phonetic: 'ken-sis-tent', meaning: 'Konsisten / Teratur', example: 'Consistent effort brings remarkable results.' },
+      { id: 'v8', level: 'Menengah', word: 'Fluency', phonetic: 'flu-en-si', meaning: 'Kelancaran berbicara', example: 'Shadowing audio clips improves speaking fluency.' },
+      { id: 'v9', level: 'Menengah', word: 'Perspective', phonetic: 'per-spek-tiv', meaning: 'Sudut pandang', example: 'I appreciate hearing your perspective on this issue.' },
+      { id: 'v10', level: 'Menengah', word: 'Collaborate', phonetic: 'ke-la-be-reit', meaning: 'Bekerja sama', example: 'Students collaborate to design creative solutions.' },
+      { id: 'v11', level: 'Menengah', word: 'Clarify', phonetic: 'kle-ri-fai', meaning: 'Memperjelas / Mengklarifikasi', example: 'Could you clarify your main argument?' },
+      { id: 'v12', level: 'Menengah', word: 'Practical', phonetic: 'prak-ti-kel', meaning: 'Praktis / Dapat diterapkan', example: 'She shared three practical tips for interviews.' },
+      { id: 'v13', level: 'Lanjut', word: 'Articulate', phonetic: 'ar-tik-yu-let', meaning: 'Fasih dan terstruktur dalam berbicara', example: 'He is an articulate speaker during class debates.' },
+      { id: 'v14', level: 'Lanjut', word: 'Resilient', phonetic: 'ri-zil-yent', meaning: 'Tangguh / Cepat bangkit', example: 'Resilient learners treat mistakes as feedback.' },
+      { id: 'v15', level: 'Lanjut', word: 'Concise', phonetic: 'ken-sais', meaning: 'Ringkas dan padat makna', example: 'Keep your elevator pitch clear and concise.' },
+      { id: 'v16', level: 'Lanjut', word: 'Break the ice', phonetic: 'breik de ais', meaning: 'Mencairkan suasana canggung', example: 'A friendly smile helps break the ice immediately.' },
+      { id: 'v17', level: 'Lanjut', word: 'Compelling', phonetic: 'kem-pe-ling', meaning: 'Menarik dan meyakinkan', example: 'She delivered a compelling presentation to the judges.' },
+      { id: 'v18', level: 'Lanjut', word: 'Initiative', phonetic: 'i-ni-sye-tiv', meaning: 'Inisiatif / Langkah awal mandiri', example: 'Taking initiative shows strong leadership potential.' },
+      { id: 'v19', level: 'Master', word: 'Pivotal', phonetic: 'pi-ve-tel', meaning: 'Sangat menentukan / Krusial', example: 'Active listening plays a pivotal role in diplomacy.' },
+      { id: 'v20', level: 'Master', word: 'Nuance', phonetic: 'nyu-ans', meaning: 'Nuansa / Perbedaan makna halus', example: 'Mastering tone reveals the nuance behind every phrase.' },
+      { id: 'v21', level: 'Master', word: 'Hit the nail on the head', phonetic: 'hit de neil on de hed', meaning: 'Sangat tepat sasaran', example: 'Your analysis hit the nail on the head.' },
+      { id: 'v22', level: 'Master', word: 'Eloquent', phonetic: 'e-le-kwent', meaning: 'Fasih, indah, dan persuasif', example: 'Her eloquent closing speech inspired the audience.' },
+      { id: 'v23', level: 'Master', word: 'Play it by ear', phonetic: 'plei it bai ir', meaning: 'Menyesuaikan fleksibel mengikuti situasi', example: 'If the schedule changes, we can play it by ear.' },
+      { id: 'v24', level: 'Master', word: 'Ubiquitous', phonetic: 'yu-bi-kwi-tes', meaning: 'Ada di mana-mana', example: 'Digital voice tools have become ubiquitous in education.' }
+    ];
 
     const QUIZ_TIERS = ['Pemula', 'Menengah', 'Lanjut', 'Master'];
 
@@ -838,7 +1157,7 @@
       }, 3200);
     }
 
-    function speakEnglish(text) {
+    function speakEnglish(text, rateOverride = null, langOverride = null) {
       if (!('speechSynthesis' in window)) {
         showToast('Browser tidak mendukung pemutar suara otomatis.', 'warning');
         return;
@@ -847,8 +1166,8 @@
       if (!clean) return;
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(clean);
-      utterance.lang = 'en-US';
-      utterance.rate = 0.92;
+      utterance.lang = langOverride || (state.speechSettings ? state.speechSettings.accent : 'en-US');
+      utterance.rate = rateOverride != null ? rateOverride : (state.speechSettings ? state.speechSettings.rate : 0.95);
       utterance.onerror = () => showToast('Suara tidak dapat diputar di perangkat ini.', 'warning');
       window.speechSynthesis.speak(utterance);
     }
@@ -1305,16 +1624,19 @@
     function updateBottomNav() {
       const nav = document.getElementById('bottom-nav');
       if (!nav) return;
-      const mainScreens = ['home', 'practice', 'result', 'translate', 'quiz', 'profile'];
+      const mainScreens = ['home', 'practice', 'result', 'translate', 'quiz', 'profile', 'studio', 'roleplay', 'vocab', 'shadowing', 'analytics'];
       if (mainScreens.includes(state.currentScreen)) {
         nav.classList.remove('hidden');
       } else {
         nav.classList.add('hidden');
       }
 
+      const studioSubScreens = ['studio', 'roleplay', 'vocab', 'shadowing', 'analytics'];
       const activeTarget = state.currentScreen === 'translate'
-        ? (state.translateOrigin === 'result' ? 'practice' : 'home')
-        : state.currentScreen;
+        ? (state.translateOrigin === 'result' ? 'practice' : 'studio')
+        : studioSubScreens.includes(state.currentScreen)
+          ? 'studio'
+          : state.currentScreen;
 
       document.querySelectorAll('.nav-btn').forEach(btn => {
         const target = btn.getAttribute('data-nav');
@@ -1379,6 +1701,21 @@
           break;
         case 'quiz':
           container.innerHTML = renderQuizScreen();
+          break;
+        case 'studio':
+          container.innerHTML = renderStudioScreen();
+          break;
+        case 'roleplay':
+          container.innerHTML = renderRoleplayScreen();
+          break;
+        case 'vocab':
+          container.innerHTML = renderVocabScreen();
+          break;
+        case 'shadowing':
+          container.innerHTML = renderShadowingScreen();
+          break;
+        case 'analytics':
+          container.innerHTML = renderAnalyticsScreen();
           break;
         case 'profile':
           container.innerHTML = renderProfileScreen();
@@ -2100,6 +2437,19 @@
     }
 
     function getCurrentTopic() {
+      if (state.customPromptMode && state.customPromptText.trim()) {
+        const custom = state.customPromptText.trim();
+        return {
+          title: 'Latihan Kalimat Sendiri',
+          prompt: custom,
+          promptMeaning: `Kalimat latihan kustom: "${custom}"`,
+          promptPhonetic: 'Klik tombol Dengar untuk mendengarkan pelafalan langsung.',
+          samplePhrase: custom,
+          sampleMeaning: `Kalimat kustom: "${custom}"`,
+          samplePhonetic: 'Gunakan tombol Cek di layar Terjemahan untuk analisis lengkap.',
+          sampleExplanation: 'Mode kalimat kustom memungkinkan kamu berlatih teks pidato, presentasi, atau tugas sekolah sendiri.'
+        };
+      }
       const list = getActiveTopics();
       if (state.selectedTopicIndex >= list.length) state.selectedTopicIndex = 0;
       return list[state.selectedTopicIndex] || list[0];
@@ -2209,6 +2559,8 @@
       state.quiz.combo = 0;
       state.quiz.answered = null;
       loadQuizProgress();
+      loadVocabProgress();
+      loadRoleplayProgress();
       loadPracticeHistory();
     }
 
@@ -2765,21 +3117,30 @@
           ? 'Mulai sesi voice note pertamamu hari ini untuk membangun streak!'
           : `Selesaikan ${Math.max(1, Math.ceil((100 - state.user.weeklyProgress) / 25))} sesi lagi untuk mencapai 100% minggu ini!`;
 
+      const rankInfo = getUserRankInfo();
+      const missions = getDailyMissions();
+
       return `
         <div class="screen-enter p-5 space-y-5">
-          <!-- Header: Halo + Streak Badge -->
+          <!-- Header: Halo + Streak Badge + Dark Mode -->
           <header class="flex items-center justify-between pt-1">
-            <div>
+            <div class="min-w-0 pr-2">
               <p class="text-xs font-medium text-slate-500">Selamat datang kembali</p>
-              <h1 class="font-display text-2xl font-extrabold text-slate-900">Halo, ${escapeHtml(state.user.name)}</h1>
+              <h1 class="font-display text-2xl font-extrabold text-slate-900 truncate">Halo, ${escapeHtml(state.user.name)}</h1>
             </div>
-            <div class="flex items-center gap-2">
-              <div class="px-3.5 py-2 rounded-2xl ${state.user.streak > 0 ? 'bg-amber-50 border-amber-200/80 text-amber-700' : 'bg-slate-100 border-slate-200 text-slate-600'} border flex items-center gap-1.5 shadow-sm">
-                <svg class="w-4 h-4 ${state.user.streak > 0 ? 'text-amber-600' : 'text-slate-400'}" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <div class="flex items-center gap-1.5 shrink-0">
+              <div class="px-3 py-2 rounded-2xl ${state.user.streak > 0 ? 'bg-amber-50 border-amber-200/80 text-amber-700' : 'bg-slate-100 border-slate-200 text-slate-600'} border flex items-center gap-1 shadow-sm">
+                <svg class="w-3.5 h-3.5 ${state.user.streak > 0 ? 'text-amber-600' : 'text-slate-400'}" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                <span class="text-xs font-extrabold">Streak ${state.user.streak} hari</span>
+                <span class="text-[11px] font-extrabold">${state.user.streak} hari</span>
               </div>
+              <button onclick="toggleDarkMode()" title="${state.darkMode ? 'Mode Terang' : 'Mode Gelap'}" class="p-2 rounded-2xl bg-white border border-slate-200 text-slate-500 hover:text-brand-600 transition-colors">
+                ${state.darkMode
+                  ? '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>'
+                  : '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>'
+                }
+              </button>
               <button onclick="navigate('closing')" title="Selesai / Keluar Sesi" class="p-2 rounded-2xl bg-white border border-slate-200 text-slate-500 hover:text-rose-600 hover:border-rose-200 transition-colors">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -2787,6 +3148,25 @@
               </button>
             </div>
           </header>
+
+          <!-- Kartu Peringkat XP & Level Pelajar -->
+          <section onclick="navigate('analytics')" class="cursor-pointer bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm hover:border-brand-300 transition-all">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-2xl bg-gradient-to-br from-brand-500 to-mint-500 text-white font-display font-extrabold text-sm flex items-center justify-center shadow-sm">
+                  L${rankInfo.rankNum}
+                </div>
+                <div>
+                  <p class="text-xs font-extrabold text-slate-900">Peringkat ${rankInfo.title}</p>
+                  <p class="text-[11px] text-slate-500">${rankInfo.xp} XP terkumpul - Ketuk untuk Analitik</p>
+                </div>
+              </div>
+              <span class="px-2.5 py-1 rounded-xl bg-brand-50 text-brand-700 text-[11px] font-extrabold">${rankInfo.pct}%</span>
+            </div>
+            <div class="h-2 rounded-full bg-slate-100 overflow-hidden">
+              <div class="h-full rounded-full bg-gradient-to-r from-brand-500 to-mint-500 transition-all duration-500" style="width: ${rankInfo.pct}%"></div>
+            </div>
+          </section>
 
           <!-- Kartu Utama: Sesi Hari Ini -->
           <section class="rounded-3xl bg-gradient-to-br from-brand-600 via-brand-600 to-brand-700 p-5 text-white shadow-lg shadow-brand-600/20 relative overflow-hidden">
@@ -2855,6 +3235,69 @@
             <p class="text-[11px] text-slate-500 mt-2">
               ${weeklyGoalText}
             </p>
+          </section>
+
+          <!-- Misi Harian -->
+          <section class="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm space-y-2.5">
+            <div class="flex items-center justify-between">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Misi Harian</h3>
+              <span class="text-[11px] font-bold text-brand-600">${missions.filter(m => m.done).length}/${missions.length} Selesai</span>
+            </div>
+            ${missions.map(m => `
+              <div onclick="navigate('${m.screen}')" class="cursor-pointer flex items-center justify-between p-2.5 rounded-2xl border ${m.done ? 'bg-mint-50/70 border-mint-200' : 'bg-slate-50/70 border-slate-200/70 hover:border-brand-300'} transition-all">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <span class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${m.done ? 'bg-mint-600 text-white' : 'bg-white border border-slate-300 text-slate-400'}">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                  </span>
+                  <div class="min-w-0">
+                    <p class="text-xs font-bold text-slate-800 truncate">${m.title}</p>
+                    <p class="text-[10px] text-slate-500">${m.progressText}</p>
+                  </div>
+                </div>
+                <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-lg shrink-0 ${m.done ? 'bg-mint-100 text-mint-700' : 'bg-brand-50 text-brand-700'}">+${m.xp} XP</span>
+              </div>
+            `).join('')}
+          </section>
+
+          <!-- Fitur Unggulan Studio -->
+          <section class="space-y-3">
+            <div class="flex items-center justify-between px-1">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Studio Pintar</h3>
+              <button onclick="navigate('studio')" class="text-xs font-bold text-brand-600 hover:underline">Lihat Semua</button>
+            </div>
+            <div class="grid grid-cols-2 gap-2.5">
+              <button onclick="navigate('roleplay')" class="bg-white hover:bg-slate-50 p-3.5 rounded-3xl border border-slate-200/80 shadow-sm text-left transition-all">
+                <div class="w-10 h-10 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center mb-2.5">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+                </div>
+                <h4 class="font-display text-xs font-extrabold text-slate-900">AI Roleplay</h4>
+                <p class="text-[11px] text-slate-500 mt-0.5">5 skenario dialog nyata</p>
+              </button>
+
+              <button onclick="navigate('vocab')" class="bg-white hover:bg-slate-50 p-3.5 rounded-3xl border border-slate-200/80 shadow-sm text-left transition-all">
+                <div class="w-10 h-10 rounded-2xl bg-mint-100 text-mint-600 flex items-center justify-center mb-2.5">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                </div>
+                <h4 class="font-display text-xs font-extrabold text-slate-900">Flashcard 3D</h4>
+                <p class="text-[11px] text-slate-500 mt-0.5">${state.vocab.masteredIds.length}/${getAllVocabCards().length} kata hafal</p>
+              </button>
+
+              <button onclick="navigate('shadowing')" class="bg-white hover:bg-slate-50 p-3.5 rounded-3xl border border-slate-200/80 shadow-sm text-left transition-all">
+                <div class="w-10 h-10 rounded-2xl bg-brand-100 text-brand-600 flex items-center justify-center mb-2.5">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                </div>
+                <h4 class="font-display text-xs font-extrabold text-slate-900">Shadowing US/UK</h4>
+                <p class="text-[11px] text-slate-500 mt-0.5">Atur tempo 0.75x - 1.25x</p>
+              </button>
+
+              <button onclick="navigate('analytics')" class="bg-white hover:bg-slate-50 p-3.5 rounded-3xl border border-slate-200/80 shadow-sm text-left transition-all">
+                <div class="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mb-2.5">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                </div>
+                <h4 class="font-display text-xs font-extrabold text-slate-900">Analitik & Lencana</h4>
+                <p class="text-[11px] text-slate-500 mt-0.5">Grafik skor & 8 badge</p>
+              </button>
+            </div>
           </section>
 
           <!-- Menu Cepat -->
@@ -2964,10 +3407,13 @@
               ${escapeHtml(topic.title)}
             </h1>
 
-            <!-- Kartu Instruksi: Ucapkan -->
-            <div class="bg-white rounded-3xl p-5 border-2 border-brand-100 shadow-sm relative">
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-xs font-bold uppercase tracking-wider text-brand-600">Ucapkan :</span>
+            <!-- Kartu Instruksi: Ucapkan + Kontrol Kecepatan & Kalimat Kustom -->
+            <div class="bg-white rounded-3xl p-5 border-2 border-brand-100 shadow-sm relative space-y-3">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-1.5">
+                  <button onclick="setCustomPromptMode(false)" class="px-2.5 py-1 rounded-xl text-[11px] font-bold transition-colors ${!state.customPromptMode ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}">Topik</button>
+                  <button onclick="setCustomPromptMode(true)" class="px-2.5 py-1 rounded-xl text-[11px] font-bold transition-colors ${state.customPromptMode ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}">Kalimat Sendiri</button>
+                </div>
                 <button onclick="speakTopicPrompt()"
                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold transition-colors">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -2976,9 +3422,29 @@
                   <span>Dengar</span>
                 </button>
               </div>
-              <p class="font-display text-lg font-bold text-slate-900 leading-relaxed">
-                "${escapeHtml(topic.prompt)}"
-              </p>
+
+              ${state.customPromptMode ? `
+                <textarea rows="2" placeholder="Ketik kalimat bahasa Inggris sendiri untuk dilatih..."
+                  oninput="updateCustomPromptText(this.value)"
+                  class="w-full p-3 rounded-2xl border border-slate-200 text-sm font-semibold text-slate-800 outline-none resize-none">${escapeHtml(state.customPromptText)}</textarea>
+              ` : `
+                <p class="font-display text-lg font-bold text-slate-900 leading-relaxed">
+                  "${escapeHtml(topic.prompt)}"
+                </p>
+              `}
+
+              <div class="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px]">
+                <div class="flex items-center gap-1">
+                  <span class="text-slate-400 font-semibold mr-1">Tempo:</span>
+                  ${[{ v: 0.75, l: '0.75x' }, { v: 0.95, l: '1x' }, { v: 1.2, l: '1.25x' }].map(opt => `
+                    <button onclick="setSpeechRate(${opt.v})" class="px-2 py-0.5 rounded-lg font-bold ${state.speechSettings.rate === opt.v ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}">${opt.l}</button>
+                  `).join('')}
+                </div>
+                <div class="flex items-center gap-1">
+                  <button onclick="setSpeechAccent('en-US')" class="px-2 py-0.5 rounded-lg font-bold ${state.speechSettings.accent === 'en-US' ? 'bg-mint-600 text-white' : 'bg-slate-100 text-slate-600'}">US</button>
+                  <button onclick="setSpeechAccent('en-GB')" class="px-2 py-0.5 rounded-lg font-bold ${state.speechSettings.accent === 'en-GB' ? 'bg-mint-600 text-white' : 'bg-slate-100 text-slate-600'}">UK</button>
+                </div>
+              </div>
             </div>
 
             <!-- Live Transcript Box -->
@@ -4132,12 +4598,780 @@
       `;
     }
 
+    // =========================================================================
+    // 13. FITUR LANJUTAN: DARK MODE, XP/RANK, MISI HARIAN, STUDIO, AI ROLEPLAY,
+    //     FLASHCARD 3D, SHADOWING US/UK, ANALITIK & 8 LENCANA PRESTASI
+    // =========================================================================
+    function applyDarkModeClass() {
+      document.body.classList.toggle('dark-mode', Boolean(state.darkMode));
+    }
+
+    function toggleDarkMode() {
+      state.darkMode = !state.darkMode;
+      safeStorageSet('speakup_dark_mode', state.darkMode ? '1' : '0');
+      applyDarkModeClass();
+      render();
+    }
+
+    function setSpeechRate(rate) {
+      state.speechSettings.rate = rate;
+      render();
+    }
+
+    function setSpeechAccent(accent) {
+      state.speechSettings.accent = accent;
+      render();
+    }
+
+    function setCustomPromptMode(enabled) {
+      state.customPromptMode = Boolean(enabled);
+      render();
+    }
+
+    function updateCustomPromptText(val) {
+      state.customPromptText = String(val || '');
+    }
+
+    function getAllVocabCards() {
+      return [...state.vocab.customCards, ...VOCAB_DECK_DEFAULT];
+    }
+
+    function loadVocabProgress() {
+      const key = `speakup_vocab_${state.user.id || 'guest'}`;
+      try {
+        const raw = safeStorageGet(key);
+        const parsed = raw ? JSON.parse(raw) : null;
+        state.vocab.masteredIds = parsed && Array.isArray(parsed.masteredIds) ? parsed.masteredIds : [];
+        state.vocab.customCards = parsed && Array.isArray(parsed.customCards) ? parsed.customCards : [];
+      } catch {
+        state.vocab.masteredIds = [];
+        state.vocab.customCards = [];
+      }
+    }
+
+    function saveVocabProgress() {
+      const key = `speakup_vocab_${state.user.id || 'guest'}`;
+      safeStorageSet(key, JSON.stringify({
+        masteredIds: state.vocab.masteredIds,
+        customCards: state.vocab.customCards
+      }));
+    }
+
+    function loadRoleplayProgress() {
+      const key = `speakup_roleplay_${state.user.id || 'guest'}`;
+      try {
+        const raw = safeStorageGet(key);
+        const parsed = raw ? JSON.parse(raw) : null;
+        state.roleplay.completedScenarios = parsed && Array.isArray(parsed.completedScenarios) ? parsed.completedScenarios : [];
+      } catch {
+        state.roleplay.completedScenarios = [];
+      }
+    }
+
+    function saveRoleplayProgress() {
+      const key = `speakup_roleplay_${state.user.id || 'guest'}`;
+      safeStorageSet(key, JSON.stringify({
+        completedScenarios: state.roleplay.completedScenarios
+      }));
+    }
+
+    function getUserRankInfo() {
+      const practiceXp = state.practiceHistory.reduce((sum, item) => sum + Math.round((Number(item.totalScore) || 0) * 0.5), 0);
+      const quizXp = state.quiz.completedIds.length * 15;
+      const vocabXp = state.vocab.masteredIds.length * 10;
+      const roleplayXp = state.roleplay.completedScenarios.length * 40;
+      const xp = practiceXp + quizXp + vocabXp + roleplayXp;
+
+      const tiers = [
+        { rankNum: 1, title: 'Rookie', min: 0, max: 150 },
+        { rankNum: 2, title: 'Explorer', min: 150, max: 400 },
+        { rankNum: 3, title: 'Speaker', min: 400, max: 850 },
+        { rankNum: 4, title: 'Orator', min: 850, max: 1500 },
+        { rankNum: 5, title: 'Master', min: 1500, max: 2500 }
+      ];
+      let current = tiers[0];
+      for (const t of tiers) {
+        if (xp >= t.min) current = t;
+      }
+      const span = Math.max(1, current.max - current.min);
+      const pct = Math.min(100, Math.round(((xp - current.min) / span) * 100));
+      return { ...current, xp, pct };
+    }
+
+    function getDailyMissions() {
+      const sessionsCount = state.practiceHistory.length;
+      const quizCount = state.quiz.completedIds.length;
+      const vocabCount = state.vocab.masteredIds.length;
+      return [
+        {
+          title: 'Selesaikan 1 sesi Voice Note',
+          progressText: sessionsCount >= 1 ? 'Tercapai!' : '0 / 1 sesi selesai',
+          done: sessionsCount >= 1,
+          xp: 50,
+          screen: 'practice'
+        },
+        {
+          title: 'Kuasai 5 soal di Kuis Cepat',
+          progressText: quizCount >= 5 ? 'Tercapai!' : `${quizCount} / 5 kuis dikuasai`,
+          done: quizCount >= 5,
+          xp: 75,
+          screen: 'quiz'
+        },
+        {
+          title: 'Hafalkan 3 kosakata Flashcard 3D',
+          progressText: vocabCount >= 3 ? 'Tercapai!' : `${vocabCount} / 3 kata dihafal`,
+          done: vocabCount >= 3,
+          xp: 30,
+          screen: 'vocab'
+        }
+      ];
+    }
+
+    // ---------- 13A. STUDIO HUB ----------
+    function renderStudioScreen() {
+      const rank = getUserRankInfo();
+      return `
+        <div class="screen-enter p-5 space-y-5">
+          <div class="flex items-center justify-between">
+            <div>
+              <h1 class="font-display text-xl font-extrabold text-slate-900">SpeakUp Studio</h1>
+              <p class="text-xs text-slate-500">Semua fitur canggih dalam satu tempat</p>
+            </div>
+            <span class="px-3 py-1 rounded-full bg-brand-50 text-brand-700 text-xs font-extrabold">${rank.xp} XP</span>
+          </div>
+
+          <div class="space-y-3">
+            <button onclick="navigate('roleplay')" class="w-full bg-white hover:bg-slate-50 p-4 rounded-3xl border border-slate-200/80 shadow-sm flex items-center justify-between text-left transition-all">
+              <div class="flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+                </div>
+                <div>
+                  <h3 class="font-display text-sm font-extrabold text-slate-900">AI Roleplay Percakapan</h3>
+                  <p class="text-xs text-slate-500 mt-0.5">${state.roleplay.completedScenarios.length}/${ROLEPLAY_SCENARIOS.length} skenario selesai - dialog suara & teks</p>
+                </div>
+              </div>
+              <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </button>
+
+            <button onclick="navigate('vocab')" class="w-full bg-white hover:bg-slate-50 p-4 rounded-3xl border border-slate-200/80 shadow-sm flex items-center justify-between text-left transition-all">
+              <div class="flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-mint-100 text-mint-600 flex items-center justify-center shrink-0">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                </div>
+                <div>
+                  <h3 class="font-display text-sm font-extrabold text-slate-900">Flashcard Kosakata 3D</h3>
+                  <p class="text-xs text-slate-500 mt-0.5">${state.vocab.masteredIds.length}/${getAllVocabCards().length} kata dihafal + tambah kata sendiri</p>
+                </div>
+              </div>
+              <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </button>
+
+            <button onclick="navigate('shadowing')" class="w-full bg-white hover:bg-slate-50 p-4 rounded-3xl border border-slate-200/80 shadow-sm flex items-center justify-between text-left transition-all">
+              <div class="flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-brand-100 text-brand-600 flex items-center justify-center shrink-0">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                </div>
+                <div>
+                  <h3 class="font-display text-sm font-extrabold text-slate-900">Shadowing Studio (US / UK)</h3>
+                  <p class="text-xs text-slate-500 mt-0.5">Latih intonasi dengan tempo 0.75x - 1.25x</p>
+                </div>
+              </div>
+              <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </button>
+
+            <button onclick="navigate('analytics')" class="w-full bg-white hover:bg-slate-50 p-4 rounded-3xl border border-slate-200/80 shadow-sm flex items-center justify-between text-left transition-all">
+              <div class="flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                </div>
+                <div>
+                  <h3 class="font-display text-sm font-extrabold text-slate-900">Analitik & Lencana Prestasi</h3>
+                  <p class="text-xs text-slate-500 mt-0.5">Grafik tren skor, kecepatan WPM & 8 badge</p>
+                </div>
+              </div>
+              <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </button>
+
+            <button onclick="openTranslateWithSample()" class="w-full bg-white hover:bg-slate-50 p-4 rounded-3xl border border-slate-200/80 shadow-sm flex items-center justify-between text-left transition-all">
+              <div class="flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                </div>
+                <div>
+                  <h3 class="font-display text-sm font-extrabold text-slate-900">Terjemahan & Fonetik AI</h3>
+                  <p class="text-xs text-slate-500 mt-0.5">Terjemahkan kalimat apa saja + cara baca</p>
+                </div>
+              </div>
+              <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    // ---------- 13B. AI ROLEPLAY PERCAKAPAN ----------
+    function startRoleplayScenario(scenarioId) {
+      const scenario = ROLEPLAY_SCENARIOS.find(s => s.id === scenarioId);
+      if (!scenario) return;
+      state.roleplay.activeScenarioId = scenario.id;
+      state.roleplay.stepIndex = 0;
+      const firstTurn = scenario.turns[0];
+      state.roleplay.messages = [
+        { role: 'ai', text: firstTurn.ai, sub: firstTurn.idText }
+      ];
+      speakEnglish(firstTurn.ai);
+      render();
+    }
+
+    function exitRoleplayScenario() {
+      if (state.roleplay.recognition) {
+        try { state.roleplay.recognition.stop(); } catch { }
+        state.roleplay.recognition = null;
+      }
+      state.roleplay.isListening = false;
+      state.roleplay.activeScenarioId = null;
+      render();
+    }
+
+    function sendRoleplayReply(rawText) {
+      const text = String(rawText || '').trim();
+      if (!text) return;
+      const scenario = ROLEPLAY_SCENARIOS.find(s => s.id === state.roleplay.activeScenarioId);
+      if (!scenario) return;
+
+      const currentTurn = scenario.turns[state.roleplay.stepIndex];
+      const wordCount = text.split(/\s+/).filter(Boolean).length;
+      const coachNote = wordCount >= 5
+        ? `Bagus! Kalimatmu lengkap (${wordCount} kata). ${currentTurn.tip}`
+        : `Jawaban singkat (${wordCount} kata). Coba kembangkan kalimatmu. ${currentTurn.tip}`;
+
+      state.roleplay.messages.push({ role: 'user', text, coachNote });
+      state.roleplay.stepIndex += 1;
+
+      if (state.roleplay.stepIndex < scenario.turns.length) {
+        const nextTurn = scenario.turns[state.roleplay.stepIndex];
+        state.roleplay.messages.push({ role: 'ai', text: nextTurn.ai, sub: nextTurn.idText });
+        speakEnglish(nextTurn.ai);
+      } else {
+        const closingMsg = "Excellent job! You completed this roleplay conversation naturally and confidently.";
+        state.roleplay.messages.push({ role: 'ai', text: closingMsg, sub: 'Skenario selesai! Kamu mendapatkan +40 XP.' });
+        if (!state.roleplay.completedScenarios.includes(scenario.id)) {
+          state.roleplay.completedScenarios.push(scenario.id);
+          saveRoleplayProgress();
+        }
+        speakEnglish(closingMsg);
+        showToast('Roleplay selesai! +40 XP ditambahkan.', 'success');
+      }
+      render();
+    }
+
+    function submitRoleplayInput() {
+      const input = document.getElementById('roleplay-input');
+      if (!input || !input.value.trim()) return;
+      const val = input.value.trim();
+      input.value = '';
+      sendRoleplayReply(val);
+    }
+
+    function toggleRoleplayVoice() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        showToast('Browser tidak mendukung input suara langsung. Gunakan ketik atau saran balasan.', 'warning');
+        return;
+      }
+      if (state.roleplay.isListening && state.roleplay.recognition) {
+        try { state.roleplay.recognition.stop(); } catch { }
+        state.roleplay.isListening = false;
+        render();
+        return;
+      }
+      const recognition = new SpeechRecognition();
+      recognition.lang = state.speechSettings.accent || 'en-US';
+      recognition.interimResults = false;
+      recognition.onresult = (event) => {
+        const spoken = event.results[0] && event.results[0][0] ? event.results[0][0].transcript : '';
+        state.roleplay.isListening = false;
+        if (spoken.trim()) sendRoleplayReply(spoken.trim());
+      };
+      recognition.onerror = () => {
+        state.roleplay.isListening = false;
+        showToast('Suara tidak tertangkap. Coba ulangi atau ketik jawabanmu.', 'warning');
+        render();
+      };
+      recognition.onend = () => {
+        state.roleplay.isListening = false;
+        render();
+      };
+      state.roleplay.recognition = recognition;
+      state.roleplay.isListening = true;
+      recognition.start();
+      render();
+    }
+
+    function renderRoleplayScreen() {
+      const activeScenario = ROLEPLAY_SCENARIOS.find(s => s.id === state.roleplay.activeScenarioId);
+
+      if (!activeScenario) {
+        return `
+          <div class="screen-enter p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <button onclick="navigate('studio')" class="p-2 -ml-2 rounded-xl text-slate-500 hover:bg-slate-200/60">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+              </button>
+              <h1 class="font-display text-lg font-extrabold text-slate-900">AI Roleplay</h1>
+              <span class="text-xs font-bold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full">${state.roleplay.completedScenarios.length}/${ROLEPLAY_SCENARIOS.length}</span>
+            </div>
+            <p class="text-xs text-slate-500">Pilih situasi nyata untuk berlatih percakapan interaktif dengan suara atau teks.</p>
+            <div class="space-y-3">
+              ${ROLEPLAY_SCENARIOS.map(s => {
+                const done = state.roleplay.completedScenarios.includes(s.id);
+                return `
+                  <button onclick="startRoleplayScenario('${s.id}')" class="w-full bg-white hover:bg-slate-50 p-4 rounded-3xl border ${done ? 'border-mint-300' : 'border-slate-200/80'} shadow-sm text-left transition-all">
+                    <div class="flex items-center justify-between mb-1">
+                      <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-purple-50 text-purple-700">${escapeHtml(s.level)} - ${escapeHtml(s.partner)}</span>
+                      ${done ? '<span class="text-[10px] font-extrabold text-mint-700 bg-mint-50 px-2 py-0.5 rounded-lg">Selesai</span>' : '<span class="text-[10px] font-bold text-slate-400">+40 XP</span>'}
+                    </div>
+                    <h3 class="font-display text-sm font-extrabold text-slate-900">${escapeHtml(s.title)}</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">${escapeHtml(s.desc)}</p>
+                  </button>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      const isComplete = state.roleplay.stepIndex >= activeScenario.turns.length;
+      const currentTurn = !isComplete ? activeScenario.turns[state.roleplay.stepIndex] : null;
+
+      return `
+        <div class="screen-enter min-h-full flex flex-col justify-between p-5 space-y-4">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <button onclick="exitRoleplayScenario()" class="p-2 -ml-2 rounded-xl text-slate-500 hover:bg-slate-200/60">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+              </button>
+              <div class="text-center">
+                <h2 class="font-display text-sm font-extrabold text-slate-900">${escapeHtml(activeScenario.title)}</h2>
+                <p class="text-[11px] text-slate-500">${escapeHtml(activeScenario.partner)}</p>
+              </div>
+              <span class="text-[11px] font-bold text-brand-600 bg-brand-50 px-2.5 py-1 rounded-full">${Math.min(state.roleplay.stepIndex + 1, activeScenario.turns.length)}/${activeScenario.turns.length}</span>
+            </div>
+
+            <div class="space-y-3">
+              ${state.roleplay.messages.map(msg => msg.role === 'ai' ? `
+                <div class="bg-white border border-slate-200 rounded-3xl rounded-tl-md p-3.5 shadow-sm max-w-[92%]">
+                  <div class="flex items-start justify-between gap-2">
+                    <p class="text-sm font-bold text-slate-900 leading-snug">${escapeHtml(msg.text)}</p>
+                    <button onclick="speakEnglish(${JSON.stringify(msg.text).replace(/"/g, '&quot;')})" class="p-1.5 rounded-lg bg-brand-50 text-brand-600 shrink-0" title="Dengarkan">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                    </button>
+                  </div>
+                  <p class="text-[11px] text-slate-500 mt-1">${escapeHtml(msg.sub)}</p>
+                </div>
+              ` : `
+                <div class="ml-auto max-w-[92%] space-y-1.5">
+                  <div class="bg-brand-600 text-white rounded-3xl rounded-tr-md p-3.5 shadow-sm">
+                    <p class="text-sm font-medium leading-snug">${escapeHtml(msg.text)}</p>
+                  </div>
+                  ${msg.coachNote ? `<p class="text-[11px] text-mint-700 bg-mint-50 border border-mint-200 rounded-2xl px-3 py-2">${escapeHtml(msg.coachNote)}</p>` : ''}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="pt-3 border-t border-slate-200 space-y-2.5">
+            ${isComplete ? `
+              <button onclick="startRoleplayScenario('${activeScenario.id}')" class="w-full py-3 rounded-2xl border border-slate-200 bg-white font-bold text-sm text-slate-700">Ulangi Skenario</button>
+              <button onclick="exitRoleplayScenario()" class="w-full py-3.5 rounded-2xl bg-brand-600 text-white font-bold text-sm">Pilih Skenario Lain</button>
+            ` : `
+              <div class="space-y-1.5">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Contoh balasan cepat (ketuk untuk kirim):</p>
+                ${currentTurn.suggestions.map((sug, i) => `
+                  <button onclick="sendRoleplayReply(ROLEPLAY_SCENARIOS.find(s => s.id === state.roleplay.activeScenarioId).turns[state.roleplay.stepIndex].suggestions[${i}])"
+                    class="w-full text-left px-3 py-2 rounded-2xl bg-brand-50/70 hover:bg-brand-100 text-brand-800 text-xs font-semibold border border-brand-200/70 transition-colors">
+                    "${escapeHtml(sug)}"
+                  </button>
+                `).join('')}
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="toggleRoleplayVoice()" class="p-3 rounded-2xl ${state.roleplay.isListening ? 'bg-rose-600 text-white animate-pulse' : 'bg-mint-600 text-white'} shrink-0" title="Jawab dengan Suara">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+                </button>
+                <input id="roleplay-input" type="text" placeholder="Atau ketik jawaban bahasa Inggris..." onkeydown="if(event.key==='Enter') submitRoleplayInput()"
+                  class="flex-1 px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-white text-xs font-medium outline-none" />
+                <button onclick="submitRoleplayInput()" class="px-4 py-2.5 rounded-2xl bg-brand-600 text-white text-xs font-bold shrink-0">Kirim</button>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    // ---------- 13C. FLASHCARD KOSAKATA 3D ----------
+    function getFilteredVocabCards() {
+      const all = getAllVocabCards();
+      if (state.vocab.filterLevel === 'Semua') return all;
+      return all.filter(c => c.level === state.vocab.filterLevel);
+    }
+
+    function setVocabFilter(lvl) {
+      state.vocab.filterLevel = lvl;
+      state.vocab.currentIndex = 0;
+      state.vocab.isFlipped = false;
+      render();
+    }
+
+    function flipVocabCard() {
+      state.vocab.isFlipped = !state.vocab.isFlipped;
+      render();
+    }
+
+    function markVocabCard(mastered) {
+      const list = getFilteredVocabCards();
+      const card = list[state.vocab.currentIndex];
+      if (!card) return;
+      if (mastered) {
+        if (!state.vocab.masteredIds.includes(card.id)) {
+          state.vocab.masteredIds.push(card.id);
+          state.user.newWords += 1;
+          persistProgress();
+          saveVocabProgress();
+        }
+        showToast(`"${card.word}" ditandai hafal! +10 XP`, 'success');
+      } else {
+        state.vocab.masteredIds = state.vocab.masteredIds.filter(id => id !== card.id);
+        saveVocabProgress();
+        showToast(`"${card.word}" akan diulang lagi.`, 'info');
+      }
+      state.vocab.isFlipped = false;
+      state.vocab.currentIndex = (state.vocab.currentIndex + 1) % Math.max(1, list.length);
+      render();
+    }
+
+    function toggleVocabAddForm() {
+      state.vocab.showAddForm = !state.vocab.showAddForm;
+      render();
+    }
+
+    function addCustomVocabCard(event) {
+      event.preventDefault();
+      const word = (document.getElementById('vocab-word-input')?.value || '').trim();
+      const meaning = (document.getElementById('vocab-meaning-input')?.value || '').trim();
+      const example = (document.getElementById('vocab-example-input')?.value || '').trim();
+      if (!word || !meaning) {
+        showToast('Isi kata bahasa Inggris dan artinya terlebih dahulu.', 'warning');
+        return;
+      }
+      const newCard = {
+        id: 'custom_' + Date.now(),
+        level: state.user.level || 'Pemula',
+        word,
+        phonetic: 'Klik tombol audio untuk mendengar pelafalan',
+        meaning,
+        example: example || `I use the word "${word}" in my daily speaking practice.`
+      };
+      state.vocab.customCards.unshift(newCard);
+      state.vocab.filterLevel = 'Semua';
+      state.vocab.currentIndex = 0;
+      state.vocab.isFlipped = false;
+      state.vocab.showAddForm = false;
+      saveVocabProgress();
+      showToast(`Kata "${word}" berhasil ditambahkan ke dek Flashcard!`, 'success');
+      render();
+    }
+
+    function renderVocabScreen() {
+      const cards = getFilteredVocabCards();
+      const card = cards[state.vocab.currentIndex] || cards[0];
+      const allCount = getAllVocabCards().length;
+      const masteredCount = state.vocab.masteredIds.length;
+      const isMastered = card && state.vocab.masteredIds.includes(card.id);
+
+      return `
+        <div class="screen-enter p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <button onclick="navigate('studio')" class="p-2 -ml-2 rounded-xl text-slate-500 hover:bg-slate-200/60">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <h1 class="font-display text-lg font-extrabold text-slate-900">Flashcard 3D</h1>
+            <button onclick="toggleVocabAddForm()" class="px-3 py-1.5 rounded-xl bg-brand-600 text-white text-xs font-bold">
+              ${state.vocab.showAddForm ? 'Tutup' : '+ Tambah'}
+            </button>
+          </div>
+
+          ${state.vocab.showAddForm ? `
+            <form onsubmit="addCustomVocabCard(event)" class="bg-white rounded-3xl p-4 border border-brand-200 shadow-sm space-y-2.5">
+              <p class="text-xs font-extrabold text-brand-700">Tambah Kosakata Sendiri</p>
+              <input id="vocab-word-input" type="text" placeholder="Kata / Frasa Inggris (misal: Determined)" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs" required />
+              <input id="vocab-meaning-input" type="text" placeholder="Arti Bahasa Indonesia (misal: Bertekad kuat)" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs" required />
+              <input id="vocab-example-input" type="text" placeholder="Contoh kalimat (opsional)" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs" />
+              <button type="submit" class="w-full py-2.5 rounded-xl bg-brand-600 text-white text-xs font-bold">Simpan ke Flashcard</button>
+            </form>
+          ` : ''}
+
+          <div class="flex gap-1.5 overflow-x-auto pb-1">
+            ${['Semua', 'Pemula', 'Menengah', 'Lanjut', 'Master'].map(lvl => `
+              <button onclick="setVocabFilter('${lvl}')" class="px-3 py-1.5 rounded-xl text-[11px] font-bold border whitespace-nowrap ${state.vocab.filterLevel === lvl ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-slate-600 border-slate-200'}">${lvl}</button>
+            `).join('')}
+          </div>
+
+          <div class="flex items-center justify-between text-xs text-slate-500">
+            <span>Kartu ${state.vocab.currentIndex + 1} dari ${cards.length}</span>
+            <span class="font-bold text-mint-600">Hafal: ${masteredCount}/${allCount}</span>
+          </div>
+
+          ${card ? `
+            <div class="flip-scene cursor-pointer" onclick="flipVocabCard()">
+              <div class="flip-card-inner ${state.vocab.isFlipped ? 'is-flipped' : ''}">
+                <!-- Sisi Depan -->
+                <div class="flip-card-face bg-gradient-to-br from-brand-600 to-brand-800 text-white rounded-3xl p-6 shadow-lg flex flex-col justify-between">
+                  <div class="flex items-center justify-between">
+                    <span class="px-2.5 py-1 rounded-full bg-white/20 text-[11px] font-bold">${escapeHtml(card.level)}</span>
+                    ${isMastered ? '<span class="px-2.5 py-1 rounded-full bg-mint-500 text-white text-[10px] font-extrabold">Sudah Hafal</span>' : '<span class="text-[11px] text-brand-100">Ketuk kartu untuk balik</span>'}
+                  </div>
+                  <div class="text-center my-4">
+                    <h2 class="font-display text-2xl font-extrabold">${escapeHtml(card.word)}</h2>
+                    <p class="text-xs text-brand-100 mt-1.5">${escapeHtml(card.phonetic)}</p>
+                  </div>
+                  <div class="flex justify-center">
+                    <button type="button" onclick="event.stopPropagation(); speakEnglish(${JSON.stringify(card.word).replace(/"/g, '&quot;')})"
+                      class="px-4 py-2 rounded-2xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold inline-flex items-center gap-1.5">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                      <span>Dengar Pelafalan</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Sisi Belakang -->
+                <div class="flip-card-face flip-card-back bg-white border-2 border-mint-400 rounded-3xl p-6 shadow-lg flex flex-col justify-between">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-mint-700">Arti & Contoh</span>
+                    <button type="button" onclick="event.stopPropagation(); speakEnglish(${JSON.stringify(card.example).replace(/"/g, '&quot;')})"
+                      class="px-2.5 py-1 rounded-xl bg-mint-50 text-mint-700 text-[11px] font-bold">Dengar Contoh</button>
+                  </div>
+                  <div class="my-3 text-center">
+                    <p class="font-display text-xl font-extrabold text-slate-900">${escapeHtml(card.meaning)}</p>
+                    <p class="text-xs text-slate-600 italic mt-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">"${escapeHtml(card.example)}"</p>
+                  </div>
+                  <p class="text-[11px] text-center text-slate-400">Ketuk kartu untuk kembali</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 pt-2">
+              <button onclick="markVocabCard(false)" class="py-3.5 rounded-2xl border border-amber-300 bg-amber-50 text-amber-800 font-bold text-sm">
+                Ulangi Lagi
+              </button>
+              <button onclick="markVocabCard(true)" class="py-3.5 rounded-2xl bg-mint-600 hover:bg-mint-700 text-white font-bold text-sm shadow-sm">
+                Sudah Hafal
+              </button>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    // ---------- 13D. SHADOWING STUDIO (US/UK & KECEPATAN) ----------
+    function selectShadowingTopic(idx) {
+      state.shadowing.selectedIndex = idx;
+      state.customPromptMode = false;
+      state.selectedTopicIndex = idx;
+      render();
+    }
+
+    function renderShadowingScreen() {
+      const topics = getActiveTopics();
+      const idx = Math.min(state.shadowing.selectedIndex, topics.length - 1);
+      const topic = topics[idx] || topics[0];
+
+      return `
+        <div class="screen-enter p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <button onclick="navigate('studio')" class="p-2 -ml-2 rounded-xl text-slate-500 hover:bg-slate-200/60">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <h1 class="font-display text-lg font-extrabold text-slate-900">Shadowing Studio</h1>
+            <span class="px-2.5 py-1 rounded-full bg-brand-50 text-brand-700 text-xs font-bold">${state.speechSettings.accent === 'en-GB' ? 'UK' : 'US'}</span>
+          </div>
+
+          <div class="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-500">Pilih Aksen Penutur:</span>
+              <div class="flex gap-1.5">
+                <button onclick="setSpeechAccent('en-US')" class="px-3 py-1 rounded-xl text-xs font-bold ${state.speechSettings.accent === 'en-US' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}">US English</button>
+                <button onclick="setSpeechAccent('en-GB')" class="px-3 py-1 rounded-xl text-xs font-bold ${state.speechSettings.accent === 'en-GB' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}">UK English</button>
+              </div>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-500">Kecepatan Audio:</span>
+              <div class="flex gap-1.5">
+                ${[{ v: 0.75, l: '0.75x Pelan' }, { v: 0.95, l: '1.0x Normal' }, { v: 1.2, l: '1.25x Cepat' }].map(opt => `
+                  <button onclick="setSpeechRate(${opt.v})" class="px-2.5 py-1 rounded-xl text-[11px] font-bold ${state.speechSettings.rate === opt.v ? 'bg-mint-600 text-white' : 'bg-slate-100 text-slate-600'}">${opt.l}</button>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-gradient-to-br from-brand-600 to-brand-700 text-white rounded-3xl p-5 shadow-lg space-y-3">
+            <span class="px-2.5 py-1 rounded-full bg-white/20 text-[11px] font-bold">${escapeHtml(topic.title)}</span>
+            <p class="font-display text-lg font-extrabold leading-relaxed">"${escapeHtml(topic.prompt)}"</p>
+            <p class="text-xs text-brand-100">Cara baca: ${escapeHtml(topic.promptPhonetic || topic.samplePhonetic)}</p>
+            <p class="text-xs text-mint-200">Arti: ${escapeHtml(topic.promptMeaning || topic.sampleMeaning)}</p>
+            <div class="flex gap-2.5 pt-2">
+              <button onclick="speakEnglish(${JSON.stringify(topic.prompt).replace(/"/g, '&quot;')})" class="flex-1 py-3 rounded-2xl bg-white text-brand-700 font-bold text-xs shadow-sm">
+                Putar Audio (${state.speechSettings.rate === 0.75 ? '0.75x' : state.speechSettings.rate === 1.2 ? '1.25x' : '1.0x'})
+              </button>
+              <button onclick="state.selectedTopicIndex=${idx}; state.customPromptMode=false; navigate('practice')" class="flex-1 py-3 rounded-2xl bg-mint-500 hover:bg-mint-600 text-white font-bold text-xs shadow-sm">
+                Tirukan & Nilai
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Pilih Kalimat Latihan (${escapeHtml(state.user.level)}):</p>
+            ${topics.map((t, i) => `
+              <button onclick="selectShadowingTopic(${i})" class="w-full p-3.5 rounded-2xl border text-left transition-all ${i === idx ? 'bg-brand-50 border-brand-400' : 'bg-white border-slate-200'}">
+                <p class="text-xs font-extrabold text-slate-900">${escapeHtml(t.title)}</p>
+                <p class="text-[11px] text-slate-500 truncate mt-0.5">"${escapeHtml(t.prompt)}"</p>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // ---------- 13E. ANALITIK PERFORMA & 8 LENCANA PRESTASI ----------
+    function renderAnalyticsScreen() {
+      const rank = getUserRankInfo();
+      const history = state.practiceHistory.slice(0, 7).reverse();
+      const avgScore = history.length > 0
+        ? Math.round(history.reduce((s, x) => s + (Number(x.totalScore) || 0), 0) / history.length)
+        : 0;
+      const avgWpm = history.length > 0
+        ? Math.round(history.reduce((s, x) => s + (Number(x.wpm) || 0), 0) / history.length)
+        : 0;
+      const bestScore = history.length > 0
+        ? Math.max(...history.map(x => Number(x.totalScore) || 0))
+        : 0;
+      const quizPct = Math.round((state.quiz.completedIds.length / QUIZ_BANK_100.length) * 100);
+
+      const badges = [
+        { name: 'Langkah Pertama', desc: 'Selesaikan 1 sesi speaking', unlocked: state.practiceHistory.length >= 1 },
+        { name: 'Api Konsisten', desc: 'Capai streak minimal 3 hari', unlocked: state.user.streak >= 3 },
+        { name: 'Suara Emas 90+', desc: 'Raih skor speaking minimal 90', unlocked: bestScore >= 90 },
+        { name: 'Penakluk 10 Kuis', desc: 'Kuasai 10 soal di Kuis Cepat', unlocked: state.quiz.completedIds.length >= 10 },
+        { name: 'Ahli 50 Kuis', desc: 'Kuasai 50 soal di Kuis Cepat', unlocked: state.quiz.completedIds.length >= 50 },
+        { name: 'Master 100 Kuis', desc: 'Tamatkan seluruh 100 kuis', unlocked: state.quiz.completedIds.length >= 100 },
+        { name: 'Kolektor Kata', desc: 'Hafalkan 5 kosakata Flashcard', unlocked: state.vocab.masteredIds.length >= 5 },
+        { name: 'Bintang Roleplay', desc: 'Tamatkan 2 skenario Roleplay', unlocked: state.roleplay.completedScenarios.length >= 2 }
+      ];
+      const unlockedCount = badges.filter(b => b.unlocked).length;
+
+      return `
+        <div class="screen-enter p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <button onclick="navigate('studio')" class="p-2 -ml-2 rounded-xl text-slate-500 hover:bg-slate-200/60">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <h1 class="font-display text-lg font-extrabold text-slate-900">Analitik & Lencana</h1>
+            <span class="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-bold">${unlockedCount}/${badges.length}</span>
+          </div>
+
+          <!-- Ringkasan XP & KPI -->
+          <div class="grid grid-cols-3 gap-2.5">
+            <div class="bg-white rounded-2xl p-3 border border-slate-200 text-center">
+              <p class="font-display text-lg font-extrabold text-brand-600">${avgScore}</p>
+              <p class="text-[10px] font-semibold text-slate-500">Rata-rata Skor</p>
+            </div>
+            <div class="bg-white rounded-2xl p-3 border border-slate-200 text-center">
+              <p class="font-display text-lg font-extrabold text-mint-600">${avgWpm || '-'}</p>
+              <p class="text-[10px] font-semibold text-slate-500">Rata-rata WPM</p>
+            </div>
+            <div class="bg-white rounded-2xl p-3 border border-slate-200 text-center">
+              <p class="font-display text-lg font-extrabold text-purple-600">${rank.xp}</p>
+              <p class="text-[10px] font-semibold text-slate-500">Total XP</p>
+            </div>
+          </div>
+
+          <!-- Grafik Batang Tren Skor -->
+          <div class="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+            <div class="flex items-center justify-between">
+              <h2 class="text-xs font-extrabold text-slate-800">Grafik 7 Sesi Terakhir</h2>
+              <span class="text-[11px] font-bold text-brand-600">Terbaik: ${bestScore}</span>
+            </div>
+            ${history.length === 0 ? `
+              <p class="text-xs text-slate-400 text-center py-6">Belum ada riwayat rekaman. Mulai latihan speaking untuk melihat grafikmu.</p>
+            ` : `
+              <div class="flex items-end justify-between gap-2 h-32 pt-4 px-1">
+                ${history.map((item, i) => {
+                  const s = Math.max(4, Number(item.totalScore) || 0);
+                  const barColor = s >= 80 ? 'bg-mint-500' : s >= 60 ? 'bg-brand-500' : 'bg-rose-400';
+                  return `
+                    <div class="flex-1 flex flex-col items-center gap-1 h-full justify-end">
+                      <span class="text-[10px] font-extrabold text-slate-600">${item.totalScore}</span>
+                      <div class="w-full rounded-t-xl ${barColor} transition-all" style="height: ${s}%"></div>
+                      <span class="text-[9px] text-slate-400 font-semibold">S${i + 1}</span>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `}
+          </div>
+
+          <!-- Progres Penguasaan Skill -->
+          <div class="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+            <h2 class="text-xs font-extrabold text-slate-800">Peta Penguasaan</h2>
+            ${[
+              { label: 'Kuis Progresif (100 Soal)', pct: quizPct, val: `${state.quiz.completedIds.length}/100`, color: 'bg-brand-500' },
+              { label: 'Flashcard Kosakata', pct: Math.round((state.vocab.masteredIds.length / Math.max(1, getAllVocabCards().length)) * 100), val: `${state.vocab.masteredIds.length}/${getAllVocabCards().length}`, color: 'bg-mint-500' },
+              { label: 'AI Roleplay Skenario', pct: Math.round((state.roleplay.completedScenarios.length / ROLEPLAY_SCENARIOS.length) * 100), val: `${state.roleplay.completedScenarios.length}/${ROLEPLAY_SCENARIOS.length}`, color: 'bg-purple-500' }
+            ].map(row => `
+              <div>
+                <div class="flex justify-between text-[11px] font-bold mb-1">
+                  <span class="text-slate-700">${row.label}</span>
+                  <span class="text-slate-500">${row.val}</span>
+                </div>
+                <div class="h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div class="h-full rounded-full ${row.color}" style="width: ${row.pct}%"></div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <!-- 8 Lencana Prestasi -->
+          <div class="space-y-2.5">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">Lencana Prestasi (${unlockedCount}/${badges.length})</h2>
+            <div class="grid grid-cols-2 gap-2.5">
+              ${badges.map(b => `
+                <div class="p-3.5 rounded-2xl border ${b.unlocked ? 'bg-amber-50/70 border-amber-300' : 'bg-white border-slate-200 opacity-60'}">
+                  <div class="flex items-center justify-between mb-1.5">
+                    <span class="w-7 h-7 rounded-xl flex items-center justify-center ${b.unlocked ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-500'}">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                    </span>
+                    <span class="text-[10px] font-extrabold ${b.unlocked ? 'text-amber-700' : 'text-slate-400'}">${b.unlocked ? 'Terbuka' : 'Terkunci'}</span>
+                  </div>
+                  <p class="text-xs font-extrabold text-slate-900">${b.name}</p>
+                  <p class="text-[10px] text-slate-500 mt-0.5">${b.desc}</p>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     // Inisialisasi aplikasi saat halaman dimuat (1.2 Splash -> 1.3 Cek sesi / Onboarding 3 layar)
     window.addEventListener('keydown', event => {
       if (event.key === 'Escape' && state.googleModal.isOpen) closeGoogleAccountModal();
     });
 
     window.addEventListener('DOMContentLoaded', async () => {
+      state.darkMode = safeStorageGet('speakup_dark_mode') === '1';
+      applyDarkModeClass();
+      loadVocabProgress();
+      loadRoleplayProgress();
       const reset = new URLSearchParams(window.location.search).get('reset');
       if (reset && /^[a-f0-9]{64}$/.test(reset)) state.resetToken = reset;
       try {
