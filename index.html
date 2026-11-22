@@ -704,7 +704,10 @@
         showToast(`Akun SpeakUp dibuat & ditautkan ke Google. Selamat datang, ${state.user.name}!`, 'success');
         navigate('consent');
       } catch (error) {
-        closeGoogleAccountModal();
+        state.googleModal.isOpen = true;
+        state.googleModal.step = 'error';
+        state.googleModal.errorMessage = error.message || 'Profil gagal disimpan. Coba lagi.';
+        renderGoogleModal();
         showToast(error.message, 'error');
       }
     }
@@ -1255,6 +1258,26 @@
       return { email: null, phone };
     }
 
+    function normalizeClientReminderTime(value) {
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (/^([01]\d|2[0-3]):[0-5]\d$/.test(trimmed)) return trimmed;
+        const hmMatch = trimmed.match(/^(\d{1,2})[:.](\d{2})(?::\d{2})?$/);
+        if (hmMatch) {
+          const h = Number(hmMatch[1]);
+          const m = Number(hmMatch[2]);
+          if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+          }
+        }
+        const parsed = new Date(trimmed);
+        if (!Number.isNaN(parsed.getTime())) {
+          return `${String(parsed.getHours()).padStart(2, '0')}:${String(parsed.getMinutes()).padStart(2, '0')}`;
+        }
+      }
+      return DEFAULT_REMINDER_TIME;
+    }
+
     function toClientPublicUser(row) {
       const intOr = (value, fallback) => {
         const number = Number(value);
@@ -1274,7 +1297,7 @@
         provider: googleLinked ? 'google' : 'email',
         googleLinked,
         googleEmail: row.google_email || row.googleEmail || null,
-        reminderTime: row.reminder_time || row.reminderTime || '19:00',
+        reminderTime: normalizeClientReminderTime(row.reminder_time || row.reminderTime),
         micPermission: Boolean(Number(row.mic_permission ?? row.micPermission ?? 0)),
         privacyAgreed: Boolean(Number(row.privacy_agreed ?? row.privacyAgreed ?? 0)),
         parentalAgreed: Boolean(Number(row.parental_agreed ?? row.parentalAgreed ?? 0)),
@@ -1495,21 +1518,38 @@
             streak: 3,
             new_words: 4,
             weekly_progress: 65,
-            google_linked: 1,
-            google_email: email,
-            google_sub: googleSub || ('google-' + email),
             created_at: Date.now()
           };
-          const created = await callDirectAppsScript('createUser', { user: newUserObj });
-          user = (created && created.id) ? { ...newUserObj, ...created, google_linked: 1, google_email: email } : newUserObj;
+          let created;
+          try {
+            created = await callDirectAppsScript('createUser', {
+              user: {
+                ...newUserObj,
+                google_linked: 1,
+                google_email: email,
+                google_sub: googleSub || ('google-' + email)
+              }
+            });
+          } catch {
+            // Backend Apps Script lama mungkin belum punya kolom Google.
+            created = await callDirectAppsScript('createUser', { user: newUserObj });
+          }
+          user = (created && created.id)
+            ? { ...newUserObj, ...created, google_linked: 1, google_email: email }
+            : { ...newUserObj, google_linked: 1, google_email: email };
         } else {
           const updates = {};
           if (!Number(user.google_linked)) updates.google_linked = 1;
           if ((user.google_email || '') !== email) updates.google_email = email;
           if (googleSub && (user.google_sub || '') !== googleSub) updates.google_sub = googleSub;
           if (Object.keys(updates).length > 0) {
-            const updated = await callDirectAppsScript('updateUser', { id: user.id, updates });
-            user = (updated && updated.id) ? { ...user, ...updated, ...updates } : { ...user, ...updates };
+            try {
+              const updated = await callDirectAppsScript('updateUser', { id: user.id, updates });
+              user = (updated && updated.id) ? { ...user, ...updated, ...updates } : { ...user, ...updates };
+            } catch {
+              // Login tetap lanjut walau penautan Google tidak tersimpan.
+              user = { ...user, ...updates };
+            }
           }
         }
         const newSessionHash = await sha256Hex(user.id + '-' + Date.now() + '-' + Math.random());
@@ -1679,13 +1719,15 @@
     }
 
     function applyAuthenticatedUser(user) {
+      const next = user && typeof user === 'object' ? user : {};
       state.user = {
         ...state.user,
-        ...user,
-        email: user.email || user.phone || '',
-        provider: user.provider || (user.googleLinked ? 'google' : 'email'),
-        googleLinked: Boolean(user.googleLinked),
-        googleEmail: user.googleEmail || ''
+        ...next,
+        email: next.email || next.phone || '',
+        provider: next.provider || (next.googleLinked ? 'google' : 'email'),
+        googleLinked: Boolean(next.googleLinked),
+        googleEmail: next.googleEmail || '',
+        reminderTime: normalizeClientReminderTime(next.reminderTime || next.reminder_time || state.user.reminderTime)
       };
       state.accounts = [state.user];
     }
@@ -1694,7 +1736,7 @@
       const profile = {
         education: state.user.education,
         level: state.user.level,
-        reminderTime: state.user.reminderTime,
+        reminderTime: normalizeClientReminderTime(state.user.reminderTime),
         micPermission: state.user.micPermission,
         privacyAgreed: state.user.privacyAgreed,
         parentalAgreed: state.user.parentalAgreed,
@@ -1708,7 +1750,9 @@
         method: 'PUT',
         body: JSON.stringify(profile)
       });
-      applyAuthenticatedUser(result.user);
+      // Jika backend lama tidak mengembalikan user, tetap pakai data lokal
+      // supaya pengguna tidak tertahan di layar login.
+      applyAuthenticatedUser(result && result.user ? result.user : { ...state.user, ...profile });
     }
 
     function renderLoginScreen() {

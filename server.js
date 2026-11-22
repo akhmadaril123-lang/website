@@ -6,7 +6,7 @@ const path = require('node:path');
 const { promisify } = require('node:util');
 const express = require('express');
 const { rateLimit } = require('express-rate-limit');
-const { createGoogleAppsScriptStore } = require('./google-sheets-store');
+const { createGoogleAppsScriptStore, normalizeReminderTime } = require('./google-sheets-store');
 
 const scrypt = promisify(crypto.scrypt);
 const SESSION_COOKIE = 'speakup_session';
@@ -143,7 +143,7 @@ function toPublicUser(row) {
     provider: googleLinked ? 'google' : 'email',
     googleLinked,
     googleEmail: row.google_email || null,
-    reminderTime: row.reminder_time,
+    reminderTime: normalizeReminderTime(row.reminder_time),
     micPermission: Boolean(row.mic_permission),
     privacyAgreed: Boolean(row.privacy_agreed),
     parentalAgreed: Boolean(row.parental_agreed),
@@ -655,10 +655,16 @@ function createApp(options = {}) {
       updates.level = body.level;
     }
     if (Object.prototype.hasOwnProperty.call(body, 'reminderTime')) {
-      if (typeof body.reminderTime !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(body.reminderTime)) {
+      if (typeof body.reminderTime !== 'string') {
         return res.status(400).json({ error: 'Format waktu pengingat tidak valid.' });
       }
-      updates.reminder_time = body.reminderTime;
+      const trimmedTime = body.reminderTime.trim();
+      const isValidDirect = /^([01]\d|2[0-3]):[0-5]\d$/.test(trimmedTime);
+      const isSheetDateStr = /^\w{3}\s+\w{3}\s+\d{1,2}\s+\d{4}\s+\d{2}:\d{2}:\d{2}/.test(trimmedTime) || /^\d{4}-\d{2}-\d{2}T/.test(trimmedTime);
+      if (!isValidDirect && !isSheetDateStr) {
+        return res.status(400).json({ error: 'Format waktu pengingat tidak valid.' });
+      }
+      updates.reminder_time = normalizeReminderTime(trimmedTime);
     }
     for (const [field, column] of Object.entries(booleanFields)) {
       if (Object.prototype.hasOwnProperty.call(body, field)) {

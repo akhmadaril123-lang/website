@@ -257,6 +257,23 @@ function recordToRow_(sheet, record, fallbackColumns) {
   });
 }
 
+function formatReminderTime_(val) {
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    var h = ('0' + val.getHours()).slice(-2);
+    var m = ('0' + val.getMinutes()).slice(-2);
+    return h + ':' + m;
+  }
+  var s = String(val || '').trim();
+  if (/^([01]\d|2[0-3]):[0-5]\d$/.test(s)) return s;
+  var parsed = new Date(s);
+  if (!isNaN(parsed.getTime())) {
+    var ph = ('0' + parsed.getHours()).slice(-2);
+    var pm = ('0' + parsed.getMinutes()).slice(-2);
+    return ph + ':' + pm;
+  }
+  return '19:00';
+}
+
 function normalizeUser_(row) {
   if (!row) return null;
   return {
@@ -267,7 +284,7 @@ function normalizeUser_(row) {
     password_hash: String(row.password_hash || ''),
     education: String(row.education || 'SMA'),
     level: String(row.level || 'Pemula'),
-    reminder_time: String(row.reminder_time || '19:00'),
+    reminder_time: formatReminderTime_(row.reminder_time),
     mic_permission: Number(row.mic_permission) || 0,
     privacy_agreed: Number(row.privacy_agreed) || 0,
     parental_agreed: Number(row.parental_agreed) || 0,

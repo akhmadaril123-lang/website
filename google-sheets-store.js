@@ -11,6 +11,26 @@ function toNumber(value, fallback, min, max) {
   return integer;
 }
 
+function normalizeReminderTime(value) {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^([01]\d|2[0-3]):[0-5]\d$/.test(trimmed)) return trimmed;
+    const hmMatch = trimmed.match(/^(\d{1,2})[:.](\d{2})(?::\d{2})?$/);
+    if (hmMatch) {
+      const h = Number(hmMatch[1]);
+      const m = Number(hmMatch[2]);
+      if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      }
+    }
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return `${String(parsed.getHours()).padStart(2, '0')}:${String(parsed.getMinutes()).padStart(2, '0')}`;
+    }
+  }
+  return '19:00';
+}
+
 function normalizeUser(row) {
   return {
     ...row,
@@ -19,7 +39,7 @@ function normalizeUser(row) {
     phone: row.phone || null,
     education: row.education || 'SMA',
     level: row.level || 'Pemula',
-    reminder_time: row.reminder_time || row.reminderTime || '19:00',
+    reminder_time: normalizeReminderTime(row.reminder_time || row.reminderTime),
     mic_permission: Number(row.mic_permission ?? row.micPermission) || 0,
     privacy_agreed: Number(row.privacy_agreed ?? row.privacyAgreed) || 0,
     parental_agreed: Number(row.parental_agreed ?? row.parentalAgreed) || 0,
@@ -124,7 +144,18 @@ function createGoogleAppsScriptStore({ scriptUrl, fetchImpl = fetch }) {
         ...user
       };
       const created = await callAppsScript('createUser', { user: row });
-      return normalizeUser(created || row);
+      if (created) return normalizeUser(created);
+      // Web App lama kadang tidak mengembalikan baris yang dibuat. Ambil ulang
+      // dari sheet agar ID sesi selalu cocok dengan ID pengguna sebenarnya.
+      try {
+        const existing = await callAppsScript('findUserByIdentifier', {
+          identity: { email: row.email || null, phone: row.phone || null }
+        });
+        if (existing) return normalizeUser(existing);
+      } catch {
+        // Abaikan; baris lokal tetap dipakai sebagai fallback.
+      }
+      return normalizeUser(row);
     },
 
     async updateUser(id, updates) {
@@ -184,4 +215,4 @@ function createGoogleAppsScriptStore({ scriptUrl, fetchImpl = fetch }) {
   };
 }
 
-module.exports = { createGoogleAppsScriptStore, normalizeUser };
+module.exports = { createGoogleAppsScriptStore, normalizeUser, normalizeReminderTime };
