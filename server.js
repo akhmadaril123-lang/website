@@ -20,6 +20,7 @@ const DEFAULT_STATS = Object.freeze({ streak: 3, newWords: 4, weeklyProgress: 65
 const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
 // OAuth Client ID memang publik; keamanan berasal dari verifikasi token server-side.
 const DEFAULT_GOOGLE_CLIENT_ID = '778021422214-3rchusoh5qaht0ufpn0qrqs81nk75h0t.apps.googleusercontent.com';
+const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzzcJ_hXuDdv7Sy6necYQFLrsK9pmYXiEPjCert_l-h_18psTG_3122_qzsdNvBYieP/exec';
 const TRANSLATE_MAX_LENGTH = 300;
 
 function openDatabase(databasePath) {
@@ -429,7 +430,7 @@ function clearSessionCookie(res, isProduction) {
 function createApp(options = {}) {
   const isProduction = (options.nodeEnv || process.env.NODE_ENV) === 'production';
   const isTest = (options.nodeEnv || process.env.NODE_ENV) === 'test';
-  const appsScriptUrl = options.appsScriptUrl || (!options.databasePath && process.env.GOOGLE_APPS_SCRIPT_URL);
+  const appsScriptUrl = options.appsScriptUrl || (!options.databasePath && (process.env.GOOGLE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL));
   const hasAppsScriptConfig = Boolean(appsScriptUrl);
   if (!options.store && process.env.VERCEL && !hasAppsScriptConfig) {
     throw new Error('Konfigurasi GOOGLE_APPS_SCRIPT_URL belum diatur pada Environment Variables Vercel.');
@@ -554,6 +555,7 @@ function createApp(options = {}) {
     res.json({
       googleClientId: googleClientId || null,
       googleEnabled: Boolean(googleClientId),
+      googleClientIdIsDefault: googleClientId === DEFAULT_GOOGLE_CLIENT_ID,
       translateEnabled: Boolean(translatePhrase || geminiApiKey),
       appsScriptUrl: hasAppsScriptConfig ? appsScriptUrl : null
     });
@@ -911,6 +913,15 @@ function startServer() {
   const app = createApp();
   const server = app.listen(port, () => {
     console.log(`SpeakUp berjalan di http://localhost:${port}`);
+    const clientId = process.env.GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
+    if (clientId === DEFAULT_GOOGLE_CLIENT_ID) {
+      console.warn(
+        '[Google Login] Memakai Client ID demo milik proyek lain ("Potato App"). ' +
+        `Daftarkan http://localhost:${port} dan http://127.0.0.1:${port} pada ` +
+        'Authorized JavaScript origins di Google Cloud Console, atau buat OAuth Client ID ' +
+        'milik Anda lalu isi GOOGLE_CLIENT_ID di .env. Lihat GOOGLE_LOGIN_SETUP.md.'
+      );
+    }
   });
   return server;
 }

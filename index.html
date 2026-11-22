@@ -310,6 +310,7 @@
       // Daftar akun tersimpan (tersambung Google maupun Email/HP)
       accounts: [],
       googleClientId: GOOGLE_CLIENT_ID,
+      googleClientIdIsDefault: Boolean(GOOGLE_CLIENT_ID) && GOOGLE_CLIENT_ID === '778021422214-3rchusoh5qaht0ufpn0qrqs81nk75h0t.apps.googleusercontent.com',
       googleModal: {
         isOpen: false,
         step: 'picker', // picker, linking-existing, choose-education
@@ -535,6 +536,8 @@
       return googleIdentityServicesPromise;
     }
 
+    let googleGisInitializedClientId = '';
+
     async function renderGISButton() {
       const container = document.getElementById('google-gis-button');
       const clientId = state.googleClientId;
@@ -549,10 +552,14 @@
         await loadGoogleIdentityServices();
         if (!container.isConnected || clientId !== state.googleClientId) return;
 
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: handleGoogleCredential
-        });
+        if (googleGisInitializedClientId !== clientId) {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: handleGoogleCredential
+          });
+          googleGisInitializedClientId = clientId;
+        }
+        container.innerHTML = '';
         window.google.accounts.id.renderButton(container, {
           theme: 'outline',
           size: 'large',
@@ -691,6 +698,45 @@
       }
     }
 
+    function renderGoogleSetupNotice() {
+      const origin = window.location.origin;
+      if (!state.googleClientId) {
+        return `
+          <div class="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 leading-relaxed space-y-2">
+            <p class="font-bold">Login Google belum dikonfigurasi</p>
+            <p>Isi <code class="font-mono">GOOGLE_CLIENT_ID</code> di <code class="font-mono">.env</code>, lalu daftarkan origin <code class="font-mono">${escapeHtml(origin)}</code> pada <strong>Authorized JavaScript origins</strong>.</p>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" onclick="copyCurrentOrigin()" class="px-2.5 py-1 rounded-lg bg-white border border-amber-300 font-bold">Salin origin</button>
+              <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" class="px-2.5 py-1 rounded-lg bg-amber-600 text-white font-bold">Buka Google Cloud Console</a>
+            </div>
+          </div>
+        `;
+      }
+      if (state.googleClientIdIsDefault) {
+        return `
+          <div class="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 leading-relaxed space-y-2">
+            <p class="font-bold">Client ID demo terdeteksi</p>
+            <p>Aplikasi memakai Client ID contoh milik proyek lain. Jika muncul <strong>origin_mismatch</strong>, daftarkan origin <code class="font-mono">${escapeHtml(origin)}</code> di Google Cloud Console, atau buat OAuth Client ID milik Anda dan isi <code class="font-mono">GOOGLE_CLIENT_ID</code> di <code class="font-mono">.env</code>.</p>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" onclick="copyCurrentOrigin()" class="px-2.5 py-1 rounded-lg bg-white border border-amber-300 font-bold">Salin origin</button>
+              <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" class="px-2.5 py-1 rounded-lg bg-amber-600 text-white font-bold">Buka Google Cloud Console</a>
+            </div>
+          </div>
+        `;
+      }
+      return '';
+    }
+
+    async function copyCurrentOrigin() {
+      const origin = window.location.origin;
+      try {
+        await navigator.clipboard.writeText(origin);
+        showToast(`Origin disalin: ${origin}`, 'success');
+      } catch {
+        showToast(`Salin manual: ${origin}`, 'info');
+      }
+    }
+
     function renderGoogleModal() {
       const modal = document.getElementById('google-modal');
       const card = document.getElementById('google-modal-card');
@@ -794,10 +840,16 @@
             diverifikasi langsung oleh Google sebelum sesi dibuat.
           </p>
 
+          ${renderGoogleSetupNotice()}
+
           <div class="rounded-2xl bg-slate-50 border border-slate-200 p-3.5 space-y-2">
-            <div id="google-gis-button" class="flex justify-center"></div>
+            ${state.googleClientId ? `<div id="google-gis-button" class="flex justify-center"></div>` : `
+              <p class="text-[11px] text-slate-500 text-center leading-relaxed">
+                Tombol Google akan muncul setelah <code class="font-mono">GOOGLE_CLIENT_ID</code> diisi.
+              </p>
+            `}
             <p class="text-[10px] text-slate-400 text-center leading-relaxed">
-              Jika popup Google menampilkan <strong>origin_mismatch</strong>, daftarkan origin <code>${escapeHtml(currentOrigin)}</code> di Google Cloud Console (Authorized JavaScript origins).
+              Origin aplikasi saat ini: <code>${escapeHtml(currentOrigin)}</code>
             </p>
           </div>
         </div>
@@ -1516,9 +1568,12 @@
         }
       }
 
-      // Jika dibuka di Live Server / static server (404/405 atau respons kosong tanpa JSON),
-      // otomatis alihkan ke Google Apps Script langsung agar tidak pernah gagal parse JSON
-      if (!result && (response.status === 404 || response.status === 405 || !rawText.trim())) {
+      // Jika dibuka di Live Server / static server / Vercel belum ter-route (404/405/500 atau respons tanpa field error JSON),
+      // otomatis alihkan ke Google Apps Script langsung agar login/register selalu berhasil
+      const hasValidBackendJson = result && typeof result === 'object' && (
+        response.ok || typeof result.error === 'string'
+      );
+      if (!hasValidBackendJson || response.status === 404 || response.status === 405 || response.status >= 500) {
         return fallbackAppsScriptApi(url, options);
       }
 
@@ -3054,6 +3109,7 @@
         if (configResponse.ok) {
           const config = await configResponse.json();
           if (config.googleClientId) state.googleClientId = config.googleClientId;
+          state.googleClientIdIsDefault = Boolean(config.googleClientIdIsDefault);
         }
       } catch {
         // Konfigurasi default tetap digunakan saat halaman dibuka offline.
