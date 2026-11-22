@@ -342,6 +342,17 @@
       if (!clean) return { meaning: '', phonetic: '', explanation: '' };
       if (LOCAL_PHRASES[clean]) return { ...LOCAL_PHRASES[clean] };
 
+      const topicMatch = getActiveTopics().find((topic) =>
+        String(topic.prompt || '').toLowerCase().replace(/[.,!?;:]/g, ' ').replace(/\s+/g, ' ').trim() === clean
+      );
+      if (topicMatch) {
+        return {
+          meaning: topicMatch.promptMeaning || topicMatch.sampleMeaning,
+          phonetic: topicMatch.promptPhonetic || topicMatch.samplePhonetic,
+          explanation: topicMatch.sampleExplanation
+        };
+      }
+
       const words = clean.split(' ');
       const meaning = words.map(word => LOCAL_WORDS[word] || word).join(' ');
       const phonetic = words.map(word => LOCAL_PHONETIC[word] || word).join(' ');
@@ -401,6 +412,8 @@
             id: 'intro',
             title: 'Perkenalkan dirimu',
             prompt: 'My name is {name} and I study at school.',
+            promptMeaning: 'Nama saya {name} dan saya belajar di sekolah.',
+            promptPhonetic: 'mai neim is {name} end ai stadi et skul.',
             samplePhrase: 'I study at school',
             sampleMeaning: 'Aku belajar di sekolah',
             samplePhonetic: 'ai stadi et skul',
@@ -410,6 +423,8 @@
             id: 'hobby',
             title: 'Ceritakan hobimu',
             prompt: 'I like reading books and listening to music in my free time.',
+            promptMeaning: 'Saya suka membaca buku dan mendengarkan musik di waktu luangku.',
+            promptPhonetic: 'ai laik riding buks end lisening tu miusik in mai fri taim.',
             samplePhrase: 'in my free time',
             sampleMeaning: 'di waktu luangku',
             samplePhonetic: 'in mai fri taim',
@@ -419,6 +434,8 @@
             id: 'daily',
             title: 'Aktivitas pagi hari',
             prompt: 'I wake up at five in the morning and go to school by bicycle.',
+            promptMeaning: 'Saya bangun pukul lima pagi dan pergi ke sekolah naik sepeda.',
+            promptPhonetic: 'ai weik ap et faiv in de morning end gou tu skul bai baisikel.',
             samplePhrase: 'go to school by bicycle',
             sampleMeaning: 'pergi ke sekolah naik sepeda',
             samplePhonetic: 'gou tu skul bai baisikel',
@@ -428,6 +445,8 @@
             id: 'family',
             title: 'Keluargaku di rumah',
             prompt: 'I live with my parents and my younger sister in a small house.',
+            promptMeaning: 'Saya tinggal bersama orang tua dan adik perempuanku di sebuah rumah kecil.',
+            promptPhonetic: 'ai liv wid mai perens end mai yangger sister in e smol haus.',
             samplePhrase: 'live with my parents',
             sampleMeaning: 'tinggal bersama orang tuaku',
             samplePhonetic: 'liv wid mai perens',
@@ -439,6 +458,8 @@
             id: 'school-life',
             title: 'Pelajaran favorit di sekolah',
             prompt: 'My favorite subject is English because I want to speak confidently with people around the world.',
+            promptMeaning: 'Pelajaran favoritku adalah bahasa Inggris karena saya ingin berbicara dengan percaya diri dengan orang-orang di seluruh dunia.',
+            promptPhonetic: 'mai feivrit sabjek is inglis bikoz ai wont tu spik konfidenli wid pipel eraun de werld.',
             samplePhrase: 'speak confidently',
             sampleMeaning: 'berbicara dengan percaya diri',
             samplePhonetic: 'spik konfidenli',
@@ -448,6 +469,8 @@
             id: 'weekend',
             title: 'Rencana akhir pekan',
             prompt: 'This weekend I am going to visit my grandmother and help her cook traditional food.',
+            promptMeaning: 'Akhir pekan ini saya akan mengunjungi nenekku dan membantunya memasak makanan tradisional.',
+            promptPhonetic: 'dis wikend ai em gouing tu visit mai grenmoder end help her kuk tradisyonel fud.',
             samplePhrase: 'am going to visit',
             sampleMeaning: 'akan mengunjungi',
             samplePhonetic: 'em gouing tu visit',
@@ -457,6 +480,8 @@
             id: 'technology',
             title: 'Belajar lewat HP',
             prompt: 'I use my smartphone every evening to practice pronunciation and learn new vocabulary.',
+            promptMeaning: 'Saya menggunakan ponselku setiap sore untuk melatih pelafalan dan mempelajari kosakata baru.',
+            promptPhonetic: 'ai yus mai smartfon evri ivning tu praktis pronansieisyen end lern nyu vokebyuleri.',
             samplePhrase: 'learn new vocabulary',
             sampleMeaning: 'mempelajari kosakata baru',
             samplePhonetic: 'lern nyu vokebyuleri',
@@ -468,6 +493,8 @@
             id: 'future-goal',
             title: 'Cita-cita dan masa depan',
             prompt: 'In the future I hope to build a meaningful career that contributes positively to my community.',
+            promptMeaning: 'Di masa depan saya berharap dapat membangun karier bermakna yang berkontribusi positif bagi masyarakatku.',
+            promptPhonetic: 'in de fyucer ai houp tu bild e miningful kerier det kontribyuts positivli tu mai komyuniti.',
             samplePhrase: 'contributes positively',
             sampleMeaning: 'berkontribusi secara positif',
             samplePhonetic: 'kontribyuts positivli',
@@ -477,6 +504,8 @@
             id: 'opinion',
             title: 'Menyampaikan pendapat',
             prompt: 'In my opinion practicing aloud for ten minutes every day is more effective than memorizing long lists.',
+            promptMeaning: 'Menurut pendapatku, berlatih dengan suara keras selama sepuluh menit setiap hari lebih efektif daripada menghafal daftar panjang.',
+            promptPhonetic: 'in mai opinyen praktising elaud for ten minits evri dei is mor efektiv den memoraizing long lists.',
             samplePhrase: 'more effective than',
             sampleMeaning: 'lebih efektif daripada',
             samplePhonetic: 'mor efektiv den',
@@ -486,6 +515,8 @@
             id: 'presentation',
             title: 'Pembukaan presentasi',
             prompt: 'Good morning everyone today I would like to share three practical ways to improve public speaking.',
+            promptMeaning: 'Selamat pagi semuanya, hari ini saya ingin membagikan tiga cara praktis untuk meningkatkan kemampuan berbicara di depan umum.',
+            promptPhonetic: 'gud morning evriwan tudei ai wud laik tu syer tri praktikel weis tu impruv pablik spiking.',
             samplePhrase: 'I would like to share',
             sampleMeaning: 'Saya ingin membagikan',
             samplePhonetic: 'ai wud laik tu syer',
@@ -1910,7 +1941,9 @@
         : 'Sania';
       return baseList.map(t => ({
         ...t,
-        prompt: t.prompt.replace('{name}', firstName)
+        prompt: t.prompt.replace('{name}', firstName),
+        promptMeaning: (t.promptMeaning || t.sampleMeaning).replace('{name}', firstName),
+        promptPhonetic: (t.promptPhonetic || t.samplePhonetic).replace('{name}', firstName.toLowerCase())
       }));
     }
 
@@ -2680,9 +2713,9 @@
     function openTranslateWithSample() {
       state.translateOrigin = 'home';
       const topic = getCurrentTopic();
-      state.translation.inputText = topic.samplePhrase;
-      state.translation.meaning = topic.sampleMeaning;
-      state.translation.phonetic = topic.samplePhonetic;
+      state.translation.inputText = topic.prompt;
+      state.translation.meaning = topic.promptMeaning || topic.sampleMeaning;
+      state.translation.phonetic = topic.promptPhonetic || topic.samplePhonetic;
       state.translation.explanation = topic.sampleExplanation;
       navigate('translate');
     }
@@ -3201,9 +3234,9 @@
     function openTranslateFromResult() {
       state.translateOrigin = 'result';
       const topic = getCurrentTopic();
-      state.translation.inputText = topic.samplePhrase;
-      state.translation.meaning = topic.sampleMeaning;
-      state.translation.phonetic = topic.samplePhonetic;
+      state.translation.inputText = topic.prompt;
+      state.translation.meaning = topic.promptMeaning || topic.sampleMeaning;
+      state.translation.phonetic = topic.promptPhonetic || topic.samplePhonetic;
       state.translation.explanation = topic.sampleExplanation;
       navigate('translate');
     }
