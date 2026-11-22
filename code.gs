@@ -290,9 +290,9 @@ function normalizeUser_(row) {
     parental_agreed: Number(row.parental_agreed) || 0,
     onboarding_complete: Number(row.onboarding_complete) || 0,
     created_at: Number(row.created_at) || 0,
-    streak: row.streak === '' || row.streak === undefined ? 3 : Number(row.streak),
-    new_words: row.new_words === '' || row.new_words === undefined ? 4 : Number(row.new_words),
-    weekly_progress: row.weekly_progress === '' || row.weekly_progress === undefined ? 65 : Number(row.weekly_progress),
+    streak: row.streak === '' || row.streak === undefined ? 0 : Number(row.streak),
+    new_words: row.new_words === '' || row.new_words === undefined ? 0 : Number(row.new_words),
+    weekly_progress: row.weekly_progress === '' || row.weekly_progress === undefined ? 0 : Number(row.weekly_progress),
     google_linked: Number(row.google_linked) || 0,
     google_email: row.google_email ? String(row.google_email).toLowerCase() : null,
     google_sub: row.google_sub ? String(row.google_sub) : null

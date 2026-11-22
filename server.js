@@ -16,7 +16,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESET_TOKEN_PATTERN = /^[a-f0-9]{64}$/;
 const EDUCATION_LEVELS = new Set(['SMA', 'SMK', 'SMP', 'Umum']);
 const LEARNING_LEVELS = new Set(['Pemula', 'Menengah', 'Lanjut']);
-const DEFAULT_STATS = Object.freeze({ streak: 3, newWords: 4, weeklyProgress: 65 });
+const DEFAULT_STATS = Object.freeze({ streak: 0, newWords: 0, weeklyProgress: 0 });
 const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
 // OAuth Client ID memang publik; keamanan berasal dari verifikasi token server-side.
 const DEFAULT_GOOGLE_CLIENT_ID = '778021422214-3rchusoh5qaht0ufpn0qrqs81nk75h0t.apps.googleusercontent.com';
@@ -67,9 +67,9 @@ function openDatabase(databasePath) {
   `);
 
   // Migrasi ringan untuk database yang sudah dibuat sebelum kolom berikut ada.
-  ensureColumn(db, 'users', 'streak', 'INTEGER NOT NULL DEFAULT 3');
-  ensureColumn(db, 'users', 'new_words', 'INTEGER NOT NULL DEFAULT 4');
-  ensureColumn(db, 'users', 'weekly_progress', 'INTEGER NOT NULL DEFAULT 65');
+  ensureColumn(db, 'users', 'streak', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'users', 'new_words', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'users', 'weekly_progress', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'users', 'google_linked', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'users', 'google_email', 'TEXT');
   ensureColumn(db, 'users', 'google_sub', 'TEXT');

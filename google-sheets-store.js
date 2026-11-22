@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 
-const DEFAULT_STATS = Object.freeze({ streak: 3, newWords: 4, weeklyProgress: 65 });
+const DEFAULT_STATS = Object.freeze({ streak: 0, newWords: 0, weeklyProgress: 0 });
 
 function toNumber(value, fallback, min, max) {
   const number = Number(value);
