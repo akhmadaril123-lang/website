@@ -1708,6 +1708,9 @@
       if (backendMissing) {
         return fallbackAppsScriptApi(url, options);
       }
+      if (!hasValidBackendJson) {
+        throw new Error('Server mengirim respons yang tidak valid. Coba lagi.');
+      }
 
       if (!response.ok) {
         const error = new Error((result && result.error) || 'Permintaan ke server gagal.');
