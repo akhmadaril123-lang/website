@@ -85,10 +85,15 @@ function doPost(e) {
   var lock = null;
   try {
     lock = LockService.getScriptLock();
-    lock.waitLock(15000);
+    lock.waitLock(30000);
 
     const rawBody = e && e.postData && e.postData.contents ? e.postData.contents : '{}';
-    const body = JSON.parse(rawBody);
+    let body;
+    try {
+      body = JSON.parse(rawBody);
+    } catch (parseError) {
+      return jsonResponse_({ ok: false, error: 'Body permintaan bukan JSON yang valid.' });
+    }
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const usersSheet = ensureSheetWithHeader_(ss, 'users', USER_COLUMNS);
@@ -219,6 +224,28 @@ function readRecords_(sheet) {
     });
   }
   return rows;
+}
+
+/**
+ * Hapus banyak baris sekaligus (grup baris berurutan dihapus dalam satu panggilan)
+ * agar cepat saat sesi pengguna banyak.
+ */
+function deleteRowsBatch_(sheet, rowNumbers) {
+  if (!rowNumbers || rowNumbers.length === 0) return 0;
+  const sorted = rowNumbers.slice().sort(function (a, b) { return b - a; });
+  let start = sorted[0];
+  let count = 1;
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === start - count) {
+      count++;
+      continue;
+    }
+    sheet.deleteRows(start - count + 1, count);
+    start = sorted[i];
+    count = 1;
+  }
+  sheet.deleteRows(start - count + 1, count);
+  return sorted.length;
 }
 
 function recordToRow_(sheet, record, fallbackColumns) {
@@ -367,13 +394,15 @@ function updateUser_(usersSheet, id, updates) {
 
 function createSession_(sessionsSheet, session, now) {
   const records = readRecords_(sessionsSheet);
-  for (let i = records.length - 1; i >= 0; i--) {
+  const expiredRows = [];
+  for (let i = 0; i < records.length; i++) {
     if (Number(records[i].values.expires_at) <= now) {
-      sessionsSheet.deleteRow(records[i].rowNumber);
+      expiredRows.push(records[i].rowNumber);
     }
   }
+  deleteRowsBatch_(sessionsSheet, expiredRows);
   sessionsSheet.appendRow(recordToRow_(sessionsSheet, session, SESSION_COLUMNS));
-  return { success: true };
+  return { success: true, cleaned: expiredRows.length };
 }
 
 function findSessionUser_(usersSheet, sessionsSheet, sessionHash, now) {
@@ -402,36 +431,40 @@ function findSessionUser_(usersSheet, sessionsSheet, sessionHash, now) {
 
 function deleteSession_(sessionsSheet, sessionHash) {
   const records = readRecords_(sessionsSheet);
-  for (let i = records.length - 1; i >= 0; i--) {
+  const matchedRows = [];
+  for (let i = 0; i < records.length; i++) {
     if (String(records[i].values.session_hash) === String(sessionHash)) {
-      sessionsSheet.deleteRow(records[i].rowNumber);
+      matchedRows.push(records[i].rowNumber);
     }
   }
-  return { success: true };
+  deleteRowsBatch_(sessionsSheet, matchedRows);
+  return { success: true, deleted: matchedRows.length };
 }
 
 function deleteUserSessions_(sessionsSheet, userId) {
   const records = readRecords_(sessionsSheet);
   const target = String(userId);
-  let deleted = 0;
-  for (let i = records.length - 1; i >= 0; i--) {
+  const matchedRows = [];
+  for (let i = 0; i < records.length; i++) {
     if (String(records[i].values.user_id) === target) {
-      sessionsSheet.deleteRow(records[i].rowNumber);
-      deleted += 1;
+      matchedRows.push(records[i].rowNumber);
     }
   }
-  return { success: true, deleted: deleted };
+  deleteRowsBatch_(sessionsSheet, matchedRows);
+  return { success: true, deleted: matchedRows.length };
 }
 
 function createPasswordReset_(resetsSheet, reset, now) {
   const records = readRecords_(resetsSheet);
-  for (let i = records.length - 1; i >= 0; i--) {
+  const staleRows = [];
+  for (let i = 0; i < records.length; i++) {
     const expiresAt = Number(records[i].values.expires_at) || 0;
     const usedAt = records[i].values.used_at;
     if (expiresAt <= now || (usedAt !== '' && usedAt !== null && usedAt !== undefined)) {
-      resetsSheet.deleteRow(records[i].rowNumber);
+      staleRows.push(records[i].rowNumber);
     }
   }
+  deleteRowsBatch_(resetsSheet, staleRows);
   const row = {
     token_hash: reset.token_hash,
     user_id: reset.user_id,

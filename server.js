@@ -484,9 +484,11 @@ function createApp(options = {}) {
   });
 
   const skipRateLimit = () => isTest;
+  // Batas per IP sengaja dibuat longgar karena banyak pelajar sering berbagi
+  // satu IP publik (WiFi sekolah); brute force tetap terkendali.
   const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    limit: 10,
+    limit: 30,
     standardHeaders: 'draft-8',
     legacyHeaders: false,
     skip: skipRateLimit,
@@ -494,7 +496,7 @@ function createApp(options = {}) {
   });
   const registerLimiter = rateLimit({
     windowMs: 60 * 60 * 1000,
-    limit: 5,
+    limit: 60,
     standardHeaders: 'draft-8',
     legacyHeaders: false,
     skip: skipRateLimit,
@@ -761,32 +763,36 @@ function createApp(options = {}) {
 
   app.post('/api/auth/google', loginLimiter, async (req, res) => {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
-    const credential = typeof body.credential === 'string' ? body.credential : '';
+    const credential = typeof body.credential === 'string' ? body.credential.trim() : '';
 
-    let verified = null;
-    if (credential) {
-      if (!verifyGoogleToken && !googleClientId) {
-        return res.status(503).json({ error: 'Login Google belum dikonfigurasi di server.' });
-      }
-      try {
-        verified = verifyGoogleToken
-          ? await verifyGoogleToken(credential)
-          : await verifyGoogleIdToken(credential, googleClientId);
-      } catch (error) {
-        console.error('Verifikasi token Google gagal:', error.message);
-        return res.status(401).json({ error: 'Token Google tidak valid atau sudah kedaluwarsa.' });
-      }
-      if (!verified || !verified.email) {
-        return res.status(401).json({ error: 'Identitas Google tidak lengkap.' });
-      }
+    // Keamanan: identitas Google HANYA boleh berasal dari kredensial (ID token)
+    // yang diverifikasi server. Email/nama yang dikirim tanpa kredensial tidak
+    // pernah dipercaya, agar tidak ada yang bisa masuk memakai email orang lain.
+    if (!verifyGoogleToken && !googleClientId) {
+      return res.status(503).json({ error: 'Login Google belum dikonfigurasi di server.' });
+    }
+    if (!credential) {
+      return res.status(401).json({
+        error: 'Kredensial Google wajib disertakan. Silakan masuk melalui tombol "Masuk dengan Google".'
+      });
     }
 
-    const name = verified
-      ? String(verified.name || verified.email).trim()
-      : (typeof body.name === 'string' ? body.name.trim() : '');
-    const rawEmail = verified ? verified.email : body.email;
-    const identity = normalizeIdentifier(rawEmail);
-    const googleSub = verified && verified.sub ? String(verified.sub) : '';
+    let verified = null;
+    try {
+      verified = verifyGoogleToken
+        ? await verifyGoogleToken(credential)
+        : await verifyGoogleIdToken(credential, googleClientId);
+    } catch (error) {
+      console.error('Verifikasi token Google gagal:', error.message);
+      return res.status(401).json({ error: 'Token Google tidak valid atau sudah kedaluwarsa.' });
+    }
+    if (!verified || !verified.email) {
+      return res.status(401).json({ error: 'Identitas Google tidak lengkap.' });
+    }
+
+    const name = String(verified.name || verified.email).trim();
+    const identity = normalizeIdentifier(verified.email);
+    const googleSub = verified.sub ? String(verified.sub) : '';
     const education = EDUCATION_LEVELS.has(body.education) ? body.education : 'SMA';
 
     if (!name || name.length > 80 || !identity || !identity.email) {
@@ -800,7 +806,7 @@ function createApp(options = {}) {
     if (!user) user = await store.findUserByIdentifier(identity);
 
     const isNewUser = !user;
-    const linkSub = googleSub || (typeof body.googleSub === 'string' ? body.googleSub.trim() : '') || `google-${identity.email}`;
+    const linkSub = googleSub || `google-${identity.email}`;
     if (!user) {
       const randomPassword = crypto.randomBytes(24).toString('hex');
       const passwordHash = await hashPassword(randomPassword);

@@ -312,12 +312,9 @@
       googleClientId: GOOGLE_CLIENT_ID,
       googleModal: {
         isOpen: false,
-        step: 'picker', // picker, link-new, linking-existing
+        step: 'picker', // picker, linking-existing, choose-education
         selectedCandidate: null,
-        pendingName: '',
-        pendingEmail: '',
         pendingEducation: 'SMA',
-        pendingGoogleSub: '',
         pendingCredential: '',
         statusMessage: ''
       },
@@ -543,6 +540,11 @@
       const clientId = state.googleClientId;
       if (!container || !clientId) return;
 
+      if (window.location.protocol === 'file:') {
+        container.innerHTML = '<p class="text-[11px] text-slate-500 text-center px-2 leading-relaxed">Login Google hanya tersedia pada versi online (https). Buka aplikasi lewat URL server atau hosting, atau gunakan login email/nomor HP.</p>';
+        return;
+      }
+
       try {
         await loadGoogleIdentityServices();
         if (!container.isConnected || clientId !== state.googleClientId) return;
@@ -570,45 +572,7 @@
         showToast('Google tidak mengirim kredensial yang valid.', 'error');
         return;
       }
-
-      let claims;
-      try {
-        const payload = response.credential.split('.')[1];
-        if (!payload) throw new Error('Token Google tidak memiliki payload.');
-        const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-        const paddedBase64 = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
-        const payloadBytes = Uint8Array.from(atob(paddedBase64), char => char.charCodeAt(0));
-        claims = JSON.parse(new TextDecoder().decode(payloadBytes));
-      } catch (error) {
-        console.error('Kredensial Google tidak dapat dibaca:', error);
-        showToast('Respons Google tidak valid. Silakan coba lagi.', 'error');
-        return;
-      }
-
-      if (!claims || typeof claims !== 'object') {
-        showToast('Respons Google tidak valid. Silakan coba lagi.', 'error');
-        return;
-      }
-
-      const validAudience = claims.aud === state.googleClientId ||
-        (Array.isArray(claims.aud) && claims.aud.includes(state.googleClientId));
-      const validIssuer = claims.iss === 'https://accounts.google.com' ||
-        claims.iss === 'accounts.google.com';
-      if (!validAudience || !validIssuer || !Number.isFinite(claims.exp) ||
-          claims.exp <= Date.now() / 1000 ||
-          claims.email_verified !== true || !claims.sub || !claims.email || !claims.name) {
-        showToast('Identitas Google tidak lengkap atau tidak sesuai Client ID ini.', 'error');
-        return;
-      }
-
-      const candidate = {
-        name: claims.name,
-        email: claims.email.toLowerCase(),
-        googleSub: claims.sub,
-        credential: response.credential,
-        avatarColor: 'from-emerald-500 to-teal-600'
-      };
-      selectGoogleCandidate(candidate);
+      loginWithGoogleCredential(response.credential);
     }
 
     function closeGoogleAccountModal() {
@@ -619,89 +583,98 @@
       renderGoogleModal();
     }
 
-    function findLinkedAccountByGoogle(candidate) {
-      return state.accounts.find(
-        acc =>
-          (candidate.googleSub && acc.googleSub === candidate.googleSub) ||
-          acc.email.toLowerCase() === candidate.email.toLowerCase() ||
-          (acc.googleEmail && acc.googleEmail.toLowerCase() === candidate.email.toLowerCase())
-      );
-    }
-
-    function selectGoogleCandidate(candidate) {
-      state.googleModal.selectedCandidate = candidate;
-      state.googleModal.pendingCredential = candidate.credential || '';
-      const existingAccount = findLinkedAccountByGoogle(candidate);
-
-      if (existingAccount && existingAccount.googleLinked) {
-        state.googleModal.step = 'linking-existing';
-        state.googleModal.statusMessage = `Menautkan sesi & memverifikasi akun Google (${candidate.email})...`;
-        renderGoogleModal();
-
-        apiRequest('/api/auth/google', {
-          method: 'POST',
-          body: JSON.stringify({
-            name: existingAccount.name || candidate.name,
-            email: candidate.email,
-            education: existingAccount.education || 'SMA',
-            credential: candidate.credential || ''
-          })
-        }).then(result => {
-          applyAuthenticatedUser(result.user);
-          closeGoogleAccountModal();
-          showToast(`Akun Google terhubung - Selamat datang, ${state.user.name}!`, 'success');
-          navigate(state.user.onboardingComplete ? 'home' : state.user.privacyAgreed ? 'level' : 'consent');
-        }).catch(err => {
-          closeGoogleAccountModal();
-          showToast(err.message, 'error');
-        });
-      } else {
-        // Akun Google BARU atau langsung cek ke backend
-        state.googleModal.step = 'link-new';
-        state.googleModal.pendingName = candidate.name;
-        state.googleModal.pendingEmail = candidate.email;
-        state.googleModal.pendingEducation = 'SMA';
-        state.googleModal.pendingGoogleSub = candidate.googleSub;
-        renderGoogleModal();
+    function decodeGoogleCredential(credential) {
+      // Dekode klaim dasar ID token Google di sisi klien (server tetap
+      // memverifikasi token penuh sebelum membuat sesi).
+      let claims;
+      try {
+        const payload = String(credential).split('.')[1];
+        if (!payload) throw new Error('Token Google tidak memiliki payload.');
+        const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+        const paddedBase64 = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+        const payloadBytes = Uint8Array.from(atob(paddedBase64), char => char.charCodeAt(0));
+        claims = JSON.parse(new TextDecoder().decode(payloadBytes));
+      } catch (error) {
+        console.error('Kredensial Google tidak dapat dibaca:', error);
+        return null;
       }
+      return claims && typeof claims === 'object' ? claims : null;
     }
 
-    function setPendingGoogleEducation(edu) {
-      state.googleModal.pendingEducation = edu;
-      renderGoogleModal();
+    function validateGoogleClaims(claims) {
+      const validAudience = claims.aud === state.googleClientId ||
+        (Array.isArray(claims.aud) && claims.aud.includes(state.googleClientId));
+      const validIssuer = claims.iss === 'https://accounts.google.com' ||
+        claims.iss === 'accounts.google.com';
+      return Boolean(validAudience && validIssuer && Number.isFinite(claims.exp) &&
+        claims.exp > Date.now() / 1000 &&
+        claims.email_verified === true && claims.sub && claims.email);
     }
 
-    async function confirmCreateAndLinkGoogleAccount(e) {
-      e.preventDefault();
-      const fullName = document.getElementById('google-link-name').value.trim();
-      const email = state.googleModal.pendingEmail;
-      const edu = state.googleModal.pendingEducation || 'SMA';
-
-      if (!fullName) {
-        showToast('Nama lengkap wajib diisi untuk membuat akun SpeakUp.', 'warning');
+    async function loginWithGoogleCredential(credential) {
+      const claims = decodeGoogleCredential(credential);
+      if (!claims || !validateGoogleClaims(claims)) {
+        showToast('Identitas Google tidak lengkap atau tidak sesuai Client ID ini.', 'error');
+        closeGoogleAccountModal();
         return;
       }
+
+      const email = String(claims.email).toLowerCase();
+      state.googleModal.selectedCandidate = {
+        name: claims.name || email.split('@')[0],
+        email,
+        googleSub: claims.sub,
+        credential,
+        avatarColor: 'from-emerald-500 to-teal-600'
+      };
+      state.googleModal.pendingCredential = credential;
+      state.googleModal.step = 'linking-existing';
+      state.googleModal.statusMessage = `Memverifikasi akun Google (${email})...`;
+      renderGoogleModal();
 
       try {
         const result = await apiRequest('/api/auth/google', {
           method: 'POST',
-          body: JSON.stringify({
-            name: fullName,
-            email,
-            education: edu,
-            credential: state.googleModal.pendingCredential || ''
-          })
+          body: JSON.stringify({ credential })
         });
         applyAuthenticatedUser(result.user);
-        closeGoogleAccountModal();
+
         if (result.isNewUser || !state.user.onboardingComplete) {
-          showToast(`Akun SpeakUp dibuat & ditautkan ke ${email}. Lengkapi persetujuan & level!`, 'success');
+          if (result.isNewUser) {
+            // Akun Google baru: minta pilihan jenjang sebelum onboarding.
+            state.googleModal.pendingEducation = state.user.education === 'SMK' ? 'SMK' : 'SMA';
+            state.googleModal.step = 'choose-education';
+            renderGoogleModal();
+            return;
+          }
+          closeGoogleAccountModal();
           navigate(state.user.privacyAgreed ? 'level' : 'consent');
-        } else {
-          showToast(`Selamat datang kembali, ${state.user.name}!`, 'success');
-          navigate('home');
+          return;
         }
+
+        closeGoogleAccountModal();
+        showToast(`Selamat datang kembali, ${state.user.name}!`, 'success');
+        navigate('home');
       } catch (error) {
+        closeGoogleAccountModal();
+        showToast(error.message, 'error');
+      }
+    }
+
+    function setGoogleEducation(edu) {
+      state.googleModal.pendingEducation = edu === 'SMK' ? 'SMK' : 'SMA';
+      renderGoogleModal();
+    }
+
+    async function confirmGoogleEducation() {
+      const edu = state.googleModal.pendingEducation === 'SMK' ? 'SMK' : 'SMA';
+      try {
+        await saveAuthenticatedProfile({ education: edu });
+        closeGoogleAccountModal();
+        showToast(`Akun SpeakUp dibuat & ditautkan ke Google. Selamat datang, ${state.user.name}!`, 'success');
+        navigate('consent');
+      } catch (error) {
+        closeGoogleAccountModal();
         showToast(error.message, 'error');
       }
     }
@@ -748,55 +721,48 @@
         return;
       }
 
-      if (state.googleModal.step === 'link-new') {
+      if (state.googleModal.step === 'choose-education') {
         const c = state.googleModal.selectedCandidate;
         const jenjangList = ['SMA', 'SMK'];
         card.innerHTML = `
           <div class="space-y-4">
             <div class="flex items-center justify-between">
-              <button onclick="state.googleModal.step='picker'; renderGoogleModal();" class="text-xs font-bold text-slate-500 hover:text-slate-800">
-                Ganti Akun Google
-              </button>
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-mint-100 text-mint-700 text-[10px] font-bold">
+                Akun Google terhubung
+              </span>
               <span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">
-                Akun Google Baru
+                Akun SpeakUp Baru
               </span>
             </div>
 
             <div class="p-3.5 rounded-2xl bg-brand-50/70 border border-brand-200 flex items-center gap-3">
               <div class="w-11 h-11 rounded-2xl bg-gradient-to-br ${escapeHtml(c.avatarColor)} text-white font-display font-extrabold flex items-center justify-center text-base shrink-0">
-                ${escapeHtml(c.name.charAt(0).toUpperCase())}
+                ${escapeHtml((c.name || 'G').charAt(0).toUpperCase())}
               </div>
               <div class="min-w-0 flex-1">
                 <p class="text-xs font-extrabold text-slate-900 truncate">${escapeHtml(c.email)}</p>
                 <p class="text-[11px] text-brand-700 font-medium mt-0.5">
-                  Belum terhubung ke SpeakUp - Buat profil & tautkan Google
+                  Terverifikasi Google - pilih jenjang untuk membuat profil
                 </p>
               </div>
             </div>
 
-            <form onsubmit="confirmCreateAndLinkGoogleAccount(event)" class="space-y-3">
-              <div>
-                <label for="google-link-name" class="block text-xs font-semibold text-slate-700 mb-1">Nama lengkap di SpeakUp</label>
-                <input id="google-link-name" type="text" value="${escapeHtml(state.googleModal.pendingName)}" maxlength="80" required
-                  class="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 text-sm outline-none focus:border-brand-500" />
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1.5">Jenjang</label>
+              <div class="grid grid-cols-2 gap-2">
+                ${jenjangList.map(j => `
+                  <button type="button" onclick="setGoogleEducation('${j}')"
+                    class="py-2.5 rounded-xl border text-xs font-bold transition-all ${state.googleModal.pendingEducation === j ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600'}">
+                    ${j}
+                  </button>
+                `).join('')}
               </div>
+            </div>
 
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Jenjang</label>
-                <div class="grid grid-cols-2 gap-2">
-                  ${jenjangList.map(j => `
-                    <button type="button" onclick="setPendingGoogleEducation('${j}')"
-                      class="py-2 rounded-xl border text-xs font-bold transition-all ${state.googleModal.pendingEducation === j ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600'}">
-                      ${j}
-                    </button>
-                  `).join('')}
-                </div>
-              </div>
-
-              <button type="submit" class="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-md shadow-brand-600/20 transition-all">
-                Buat Akun & Tautkan Google
-              </button>
-            </form>
+            <button type="button" onclick="confirmGoogleEducation()"
+              class="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-md shadow-brand-600/20 transition-all">
+              Buat Akun & Lanjut ke Persetujuan
+            </button>
           </div>
         `;
         return;
@@ -823,59 +789,20 @@
             </button>
           </div>
 
-          <form onsubmit="handleDirectGoogleForm(event)" autocomplete="off" class="rounded-2xl bg-slate-50 border border-slate-200 p-4 space-y-3">
-            <p class="text-xs font-bold text-slate-800">
-              Masukkan akun Google Anda untuk masuk atau menautkan ke SpeakUp:
-            </p>
-            <div>
-              <label for="direct-google-name" class="block text-[11px] font-semibold text-slate-600 mb-1">Nama Akun Google</label>
-              <input id="direct-google-name" type="text" autocomplete="off" placeholder="Nama lengkap" required
-                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-brand-500" />
-            </div>
-            <div>
-              <label for="direct-google-email" class="block text-[11px] font-semibold text-slate-600 mb-1">Alamat Email Google</label>
-              <input id="direct-google-email" type="email" autocomplete="off" placeholder="nama@gmail.com" required
-                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-brand-500" />
-            </div>
-            <button type="submit" class="w-full py-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-sm transition-all">
-              Lanjutkan dengan Akun Google Ini
-            </button>
-          </form>
-
-          <div class="relative flex items-center justify-center">
-            <div class="border-t border-slate-200 w-full"></div>
-            <span class="bg-white px-2.5 text-[11px] font-medium text-slate-400">atau popup OAuth</span>
-            <div class="border-t border-slate-200 w-full"></div>
-          </div>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Pilih akun Google Anda pada jendela popup yang muncul. Identitas akan
+            diverifikasi langsung oleh Google sebelum sesi dibuat.
+          </p>
 
           <div class="rounded-2xl bg-slate-50 border border-slate-200 p-3.5 space-y-2">
             <div id="google-gis-button" class="flex justify-center"></div>
             <p class="text-[10px] text-slate-400 text-center leading-relaxed">
-              Jika popup Google menampilkan <strong>origin_mismatch</strong>, daftarkan origin <code>${escapeHtml(currentOrigin)}</code> di Google Cloud Console (Authorized JavaScript origins) atau gunakan form di atas.
+              Jika popup Google menampilkan <strong>origin_mismatch</strong>, daftarkan origin <code>${escapeHtml(currentOrigin)}</code> di Google Cloud Console (Authorized JavaScript origins).
             </p>
           </div>
         </div>
       `;
       renderGISButton();
-    }
-
-    function handleDirectGoogleForm(e) {
-      e.preventDefault();
-      const nameInput = document.getElementById('direct-google-name');
-      const emailInput = document.getElementById('direct-google-email');
-      const name = nameInput ? nameInput.value.trim() : '';
-      const email = emailInput ? emailInput.value.trim().toLowerCase() : '';
-      if (!name || !email || !email.includes('@')) {
-        showToast('Masukkan nama dan alamat email Google yang valid.', 'warning');
-        return;
-      }
-      selectGoogleCandidate({
-        name,
-        email,
-        googleSub: 'google-direct-' + email,
-        credential: '',
-        avatarColor: 'from-brand-500 to-mint-500'
-      });
     }
 
     // =========================================================================
@@ -1258,12 +1185,21 @@
     }
 
     async function callDirectAppsScript(action, payload = {}) {
-      const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        redirect: 'follow',
-        body: JSON.stringify({ action, ...payload })
-      });
+      let response;
+      try {
+        response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          redirect: 'follow',
+          signal: AbortSignal.timeout(30000),
+          body: JSON.stringify({ action, ...payload })
+        });
+      } catch (error) {
+        if (error && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
+          throw new Error('Google Apps Script tidak merespons dalam 30 detik. Coba lagi beberapa saat.');
+        }
+        throw error;
+      }
       const rawText = await response.text();
       let result;
       try {
@@ -1349,9 +1285,11 @@
         }
         const user = await callDirectAppsScript('findUserByIdentifier', { identity });
         if (!user) throw new Error('Email/nomor HP atau kata sandi salah.');
-
+        if (!/^sha256\$/.test(String(user.password_hash || ''))) {
+          throw new Error('Akun ini dibuat melalui Google. Silakan masuk dengan tombol "Masuk dengan Google".');
+        }
         const candidateSha = 'sha256$' + await sha256Hex(body.password);
-        if (user.password_hash !== candidateSha && user.password_hash !== body.password) {
+        if (user.password_hash !== candidateSha) {
           throw new Error('Email/nomor HP atau kata sandi salah.');
         }
         const newSessionHash = await sha256Hex(user.id + '-' + Date.now() + '-' + Math.random());
@@ -1368,19 +1306,36 @@
       }
 
       if (url === '/api/auth/google' && method === 'POST') {
-        const name = typeof body.name === 'string' ? body.name.trim() : '';
-        const identity = normalizeClientIdentifier(body.email);
-        const education = body.education || 'SMA';
-        if (!name || !identity || !identity.email) throw new Error('Data akun Google tidak valid.');
+        // Jalur offline (file:// / hosting statis): kredensial Google wajib ada
+        // dan sudah lolos validasi klaim sebelum akun dibuat atau ditautkan.
+        const credential = typeof body.credential === 'string' ? body.credential.trim() : '';
+        if (!credential) {
+          const err = new Error('Kredensial Google wajib ada. Masuk melalui tombol "Masuk dengan Google" pada versi online.');
+          err.status = 401;
+          throw err;
+        }
+        const claims = decodeGoogleCredential(credential);
+        if (!claims || !validateGoogleClaims(claims)) {
+          const err = new Error('Token Google tidak valid. Masuk melalui tombol "Masuk dengan Google".');
+          err.status = 401;
+          throw err;
+        }
 
-        let user = await callDirectAppsScript('findUserByIdentifier', { identity });
+        const name = String(claims.name || claims.email).trim();
+        const email = String(claims.email).toLowerCase();
+        const googleSub = String(claims.sub || '');
+        const education = ['SMA', 'SMK', 'SMP', 'Umum'].includes(body.education) ? body.education : 'SMA';
+        if (!name || name.length > 80) throw new Error('Data akun Google tidak valid.');
+
+        let user = await callDirectAppsScript('findUserByGoogleSub', { googleSub });
+        if (!user) user = await callDirectAppsScript('findUserByIdentifier', { email, phone: null });
         const isNewUser = !user;
         if (!user) {
           user = await callDirectAppsScript('createUser', {
             user: {
               id: (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : ('usr-' + Date.now()),
               name,
-              email: identity.email,
+              email,
               phone: null,
               password_hash: 'google-oauth',
               education,
@@ -1394,16 +1349,19 @@
               new_words: 4,
               weekly_progress: 65,
               google_linked: 1,
-              google_email: identity.email,
-              google_sub: '',
+              google_email: email,
+              google_sub: googleSub || ('google-' + email),
               created_at: Date.now()
             }
           });
-        } else if (!Number(user.google_linked)) {
-          user = await callDirectAppsScript('updateUser', {
-            id: user.id,
-            updates: { google_linked: 1, google_email: identity.email }
-          });
+        } else {
+          const updates = {};
+          if (!Number(user.google_linked)) updates.google_linked = 1;
+          if ((user.google_email || '') !== email) updates.google_email = email;
+          if (googleSub && (user.google_sub || '') !== googleSub) updates.google_sub = googleSub;
+          if (Object.keys(updates).length > 0) {
+            user = await callDirectAppsScript('updateUser', { id: user.id, updates });
+          }
         }
         const newSessionHash = await sha256Hex(user.id + '-' + Date.now() + '-' + Math.random());
         await callDirectAppsScript('createSession', {
@@ -1431,6 +1389,9 @@
         if (typeof body.privacyAgreed === 'boolean') updates.privacy_agreed = Number(body.privacyAgreed);
         if (typeof body.parentalAgreed === 'boolean') updates.parental_agreed = Number(body.parentalAgreed);
         if (typeof body.onboardingComplete === 'boolean') updates.onboarding_complete = Number(body.onboardingComplete);
+        if (Number.isInteger(body.streak)) updates.streak = Math.max(0, Math.min(100000, body.streak));
+        if (Number.isInteger(body.newWords)) updates.new_words = Math.max(0, Math.min(1000000, body.newWords));
+        if (Number.isInteger(body.weeklyProgress)) updates.weekly_progress = Math.max(0, Math.min(100, body.weeklyProgress));
 
         const updated = await callDirectAppsScript('updateUser', { id: current.id, updates });
         return { user: toClientPublicUser(updated || { ...current, ...updates }) };
@@ -1439,11 +1400,64 @@
       if (url === '/api/auth/forgot-password' && method === 'POST') {
         const identity = normalizeClientIdentifier(body.identifier);
         if (!identity) throw new Error('Masukkan email atau nomor HP yang valid.');
-        await callDirectAppsScript('findUserByIdentifier', { identity });
-        return {
+        const user = await callDirectAppsScript('findUserByIdentifier', { identity });
+        const result = {
           success: true,
           message: 'Jika kontak terdaftar, tautan atur ulang kata sandi telah dikirim.'
         };
+        if (user && user.email && window.crypto && window.crypto.getRandomValues) {
+          const bytes = new Uint8Array(32);
+          window.crypto.getRandomValues(bytes);
+          const token = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+          const now = Date.now();
+          await callDirectAppsScript('createPasswordReset', {
+            reset: {
+              token_hash: await sha256Hex(token),
+              user_id: user.id,
+              expires_at: now + 30 * 60 * 1000,
+              created_at: now
+            },
+            now
+          });
+          result.resetUrl = `${window.location.origin}${window.location.pathname}?reset=${token}`;
+        }
+        return result;
+      }
+
+      if (url === '/api/auth/reset-password' && method === 'POST') {
+        const token = typeof body.token === 'string' ? body.token.trim() : '';
+        const password = body.password;
+        if (!/^[a-f0-9]{64}$/.test(token)) {
+          throw new Error('Tautan atur ulang tidak valid atau sudah kedaluwarsa.');
+        }
+        if (typeof password !== 'string' || password.length < 8) {
+          throw new Error('Kata sandi harus terdiri dari minimal 8 karakter.');
+        }
+        const now = Date.now();
+        const tokenHash = await sha256Hex(token);
+        const reset = await callDirectAppsScript('findPasswordReset', { tokenHash, now });
+        if (!reset) throw new Error('Tautan atur ulang tidak valid atau sudah kedaluwarsa.');
+        const passHash = 'sha256$' + await sha256Hex(password);
+        const updated = await callDirectAppsScript('updateUser', {
+          id: reset.user_id,
+          updates: { password_hash: passHash }
+        });
+        if (!updated) throw new Error('Akun untuk tautan ini tidak ditemukan.');
+        await callDirectAppsScript('consumePasswordReset', { tokenHash, now });
+        await callDirectAppsScript('deleteUserSessions', { userId: updated.id });
+        return { success: true, message: 'Kata sandi berhasil diperbarui. Silakan masuk dengan kata sandi baru.' };
+      }
+
+      if (url === '/api/auth/google/unlink' && method === 'POST') {
+        if (!sessionHash) throw new Error('Sesi tidak ditemukan. Silakan masuk kembali.');
+        const current = await callDirectAppsScript('findSessionUser', { sessionHash, now: Date.now() });
+        if (!current) throw new Error('Sesi sudah berakhir. Silakan masuk kembali.');
+        if (!Number(current.google_linked)) throw new Error('Akun Google belum tertaut ke akun ini.');
+        const updated = await callDirectAppsScript('updateUser', {
+          id: current.id,
+          updates: { google_linked: 0, google_email: '', google_sub: '' }
+        });
+        return { user: toClientPublicUser(updated || { ...current, google_linked: 0, google_email: null, google_sub: null }) };
       }
 
       if (url === '/api/auth/logout' && method === 'POST') {
@@ -1653,6 +1667,17 @@
                 Tautan atur ulang kata sandi telah dikirim ke <strong>${escapeHtml(state.forgotSentTo)}</strong>.
               </div>
             ` : ''}
+
+            ${state.resetToken ? `
+              <div class="mt-3">
+                <button onclick="navigate('reset')" class="w-full py-3 rounded-2xl border border-brand-200 bg-brand-50 text-brand-700 font-bold text-xs hover:bg-brand-100 transition-all">
+                  Buka halaman atur ulang kata sandi
+                </button>
+                <p class="text-[10px] text-slate-400 mt-1.5 text-center leading-relaxed">
+                  Tautan langsung tersedia karena server berjalan tanpa layanan email (mode pengembangan).
+                </p>
+              </div>
+            ` : ''}
           </div>
 
           <div class="pb-4 text-center">
@@ -1674,6 +1699,8 @@
         });
         state.forgotSentTo = identifier;
         state.resetLink = result.resetUrl || '';
+        const tokenMatch = state.resetLink.match(/reset=([a-f0-9]{64})/);
+        state.resetToken = tokenMatch ? tokenMatch[1] : '';
         showToast(result.message || 'Tautan atur ulang sandi dikirim.', 'success');
         render();
       } catch (error) {
@@ -1823,7 +1850,7 @@
 
     async function handleRegister(e) {
       e.preventDefault();
-      const fullName = document.getElementById('reg-name').value.trim() || 'Sania';
+      const fullName = document.getElementById('reg-name').value.trim();
       const identifier = document.getElementById('reg-identifier').value.trim();
       const password = document.getElementById('reg-password').value;
       try {

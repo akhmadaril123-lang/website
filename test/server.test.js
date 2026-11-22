@@ -120,28 +120,90 @@ test('persists onboarding choices and invalidates a logged-out session', async (
   assert.equal(expiredSessionResponse.status, 401);
 });
 
-test('handles forgot password and Google login/registration flow', async () => {
+test('handles forgot password flow', async () => {
   const forgotResponse = await postJson('/api/auth/forgot-password', {
     identifier: 'sania@example.com'
   });
   assert.equal(forgotResponse.status, 200);
+});
 
-  const googleRegister = await postJson('/api/auth/google', {
-    name: 'Sania Google',
-    email: 'sania.google@example.com',
-    education: 'SMK'
+test('rejects Google login without a verified credential', async () => {
+  const noCredential = await postJson('/api/auth/google', {
+    name: 'Penyusup',
+    email: 'sania.google@example.com'
   });
-  assert.equal(googleRegister.status, 201);
-  const firstResult = await googleRegister.json();
-  assert.equal(firstResult.isNewUser, true);
-  assert.equal(firstResult.user.education, 'SMK');
+  assert.equal(noCredential.status, 401);
+});
 
-  const googleLogin = await postJson('/api/auth/google', {
-    name: 'Sania Google',
-    email: 'sania.google@example.com',
-    education: 'SMK'
+test('verifies Google credential before creating, deduplicating, or linking accounts', async () => {
+  const googleApp = createApp({
+    databasePath: ':memory:',
+    nodeEnv: 'test',
+    verifyGoogleToken: async credential => {
+      if (credential === 'good-token') {
+        return { sub: 'sub-123', email: 'sania.google@example.com', name: 'Sania Google', emailVerified: true };
+      }
+      if (credential === 'link-token') {
+        return { sub: 'sub-456', email: 'dewi@example.com', name: 'Dewi Google', emailVerified: true };
+      }
+      throw new Error('Token Google tidak valid.');
+    }
   });
-  assert.equal(googleLogin.status, 200);
-  const secondResult = await googleLogin.json();
-  assert.equal(secondResult.isNewUser, false);
+  const googleServer = googleApp.listen(0);
+  await new Promise(resolve => googleServer.once('listening', resolve));
+  const googleUrl = `http://127.0.0.1:${googleServer.address().port}`;
+
+  async function postGoogle(body) {
+    return fetch(`${googleUrl}/api/auth/google`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  }
+
+  try {
+    const invalidToken = await postGoogle({ credential: 'bad-token' });
+    assert.equal(invalidToken.status, 401);
+
+    const googleRegister = await postGoogle({ credential: 'good-token', education: 'SMK' });
+    assert.equal(googleRegister.status, 201);
+    const firstResult = await googleRegister.json();
+    assert.equal(firstResult.isNewUser, true);
+    assert.equal(firstResult.user.education, 'SMK');
+    assert.equal(firstResult.user.googleLinked, true);
+    assert.equal(firstResult.user.provider, 'google');
+    const googleUserId = firstResult.user.id;
+
+    const googleLogin = await postGoogle({ credential: 'good-token', education: 'SMA' });
+    assert.equal(googleLogin.status, 200);
+    const secondResult = await googleLogin.json();
+    assert.equal(secondResult.isNewUser, false);
+    assert.equal(secondResult.user.id, googleUserId);
+    assert.equal(secondResult.user.education, 'SMK');
+
+    const linkRegistration = await fetch(`${googleUrl}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Dewi',
+        identifier: 'dewi@example.com',
+        password: 'rahasia-aman-dewi'
+      })
+    });
+    assert.equal(linkRegistration.status, 201);
+    const existingUser = (await linkRegistration.json()).user;
+
+    const linkResponse = await postGoogle({ credential: 'link-token' });
+    assert.equal(linkResponse.status, 200);
+    const linkResult = await linkResponse.json();
+    assert.equal(linkResult.isNewUser, false);
+    assert.equal(linkResult.user.id, existingUser.id);
+    assert.equal(linkResult.user.googleLinked, true);
+    assert.equal(linkResult.user.email, 'dewi@example.com');
+  } finally {
+    await new Promise((resolve, reject) => {
+      googleServer.close(error => error ? reject(error) : resolve());
+    });
+    googleApp.locals.closeDatabase();
+  }
 });

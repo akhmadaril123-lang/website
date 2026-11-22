@@ -40,13 +40,23 @@ function createGoogleAppsScriptStore({ scriptUrl, fetchImpl = fetch }) {
   }
 
   async function callAppsScript(action, payload = {}) {
-    const response = await fetchImpl(scriptUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      redirect: 'follow',
-      signal: AbortSignal.timeout(10000),
-      body: JSON.stringify({ action, ...payload })
-    });
+    let response;
+    try {
+      response = await fetchImpl(scriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        redirect: 'follow',
+        // Cold start Apps Script sering lebih dari 10 detik; 30 detik mencegah
+        // login gagal acak saat banyak orang mengakses bersamaan.
+        signal: AbortSignal.timeout(30000),
+        body: JSON.stringify({ action, ...payload })
+      });
+    } catch (error) {
+      if (error && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
+        throw new Error('Google Apps Script tidak merespons dalam 30 detik. Coba lagi beberapa saat.');
+      }
+      throw error;
+    }
 
     const rawText = typeof response.text === 'function'
       ? await response.text()
