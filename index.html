@@ -128,15 +128,128 @@
       padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
     }
 
-    @media (prefers-reduced-motion: reduce) {
+    /* SpeakUp visual system: calm editorial surfaces, clear hierarchy, motion with purpose. */
+    :root {
+      --speak-ink: #10233f;
+      --speak-muted: #58708d;
+      --speak-brand: #1769e0;
+      --speak-brand-dark: #0d4cae;
+      --speak-mint: #17a984;
+      --speak-ground: #f4f8fc;
+      --speak-surface: #ffffff;
+      --speak-line: #dce7f2;
+      --speak-radius: 24px;
+      --speak-ease: cubic-bezier(.2,.8,.2,1);
+    }
 
+    body {
+      color: var(--speak-ink);
+      background: var(--speak-ground);
+    }
+
+    #app-shell {
+      background: var(--speak-surface);
+      border-color: #10233f;
+      box-shadow: 0 28px 80px rgba(16, 35, 63, .18);
+    }
+
+    #screen-container {
+      scroll-behavior: smooth;
+      background: var(--speak-ground);
+    }
+
+    #screen-container > * {
+      min-height: 100%;
+    }
+
+    .screen-enter {
+      animation: screenArrive .42s var(--speak-ease) both;
+    }
+
+    @keyframes screenArrive {
+      from { opacity: 0; transform: translateY(14px) scale(.985); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes ambientDrift {
+      0%, 100% { transform: translate3d(0, 0, 0); }
+      50% { transform: translate3d(0, -5px, 0); }
+    }
+
+    #screen-container section,
+    #screen-container header,
+    #screen-container form,
+    #screen-container .screen-enter > div {
+      animation: contentReveal .5s var(--speak-ease) both;
+    }
+
+    #screen-container section:nth-child(2) { animation-delay: 70ms; }
+    #screen-container section:nth-child(3) { animation-delay: 140ms; }
+    #screen-container section:nth-child(4) { animation-delay: 210ms; }
+
+    @keyframes contentReveal {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    #screen-container button:not(.nav-btn),
+    #google-modal button {
+      transition: transform .2s var(--speak-ease), box-shadow .2s ease, background-color .2s ease, border-color .2s ease;
+    }
+
+    #screen-container button:not(.nav-btn):hover,
+    #google-modal button:hover {
+      transform: translateY(-2px);
+    }
+
+    #screen-container button:not(.nav-btn):active,
+    #google-modal button:active {
+      transform: translateY(0) scale(.98);
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    [role="button"]:focus-visible {
+      outline: 3px solid rgba(23, 105, 224, .32);
+      outline-offset: 3px;
+    }
+
+    #bottom-nav {
+      background: rgba(255, 255, 255, .96) !important;
+      border-top-color: var(--speak-line) !important;
+      box-shadow: 0 -12px 28px rgba(16, 35, 63, .08);
+    }
+
+    .nav-btn {
+      min-height: 44px;
+      transition: color .2s ease, background-color .2s ease, transform .2s var(--speak-ease);
+    }
+
+    .nav-btn:hover { transform: translateY(-2px); }
+
+    input, select, textarea {
+      border-color: var(--speak-line) !important;
+      color: var(--speak-ink) !important;
+      transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+    }
+
+    input:hover, select:hover, textarea:hover { border-color: #a8c3df !important; }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--speak-brand) !important;
+      box-shadow: 0 0 0 4px rgba(23, 105, 224, .12) !important;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
       .wave-bar-active,
       .splash-bar,
-      .screen-enter {
+      .screen-enter,
+      #screen-container section,
+      #screen-container header,
+      #screen-container form,
+      #screen-container .screen-enter > div {
         animation: none !important;
       }
-
-      * {
+      *, *::before, *::after {
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
       }
