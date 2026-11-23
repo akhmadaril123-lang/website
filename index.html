@@ -3526,14 +3526,9 @@
       state.recording._liveSpeech = '';
       state.recording.audioChunks = [];
 
-      // Rekam audio asli untuk playback di layar hasil
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined') {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          if (state.recording.stopRequested) {
-            stream.getTracks().forEach(t => t.stop());
-            return;
-          }
           const recorder = new MediaRecorder(stream);
           recorder.ondataavailable = (e) => {
             if (e.data && e.data.size > 0) state.recording.audioChunks.push(e.data);
@@ -3543,13 +3538,12 @@
             if (state.recording.audioChunks.length > 0) {
               const blob = new Blob(state.recording.audioChunks, { type: 'audio/webm' });
               state.recording.audioUrl = URL.createObjectURL(blob);
-              if (state.currentScreen === 'result') render();
             }
           };
           recorder.start();
           state.recording.mediaRecorder = recorder;
         } catch {
-          // Lanjut tanpa playback audio jika mic diblokir
+          // Lanjutkan speech recognition meski audio playback tidak tersedia.
         }
       }
 
@@ -3627,7 +3621,6 @@
         try { state.recording.mediaRecorder.stop(); } catch { }
         state.recording.mediaRecorder = null;
       }
-
       render();
       clearTimeout(state.recording.finalizingTimer);
       state.recording.finalizingTimer = setTimeout(finishRecordingEvaluation, 900);
@@ -3913,14 +3906,6 @@
                 </div>
               ` : ''}
             </div>
-
-            <!-- Pemutar Rekaman Suara Sendiri -->
-            ${r.audioUrl ? `
-              <div class="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm">
-                <p class="text-[11px] font-bold text-slate-500 mb-1.5">Dengarkan ulang rekaman suaramu:</p>
-                <audio controls src="${r.audioUrl}" class="w-full h-9"></audio>
-              </div>
-            ` : ''}
 
             <!-- Lingkaran Skor Besar -->
             <div class="py-2 flex flex-col items-center">
