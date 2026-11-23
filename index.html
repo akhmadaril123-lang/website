@@ -725,6 +725,9 @@
         seconds: 0,
         timerInterval: null,
         recognition: null,
+        stopRequested: false,
+        finalizingTimer: null,
+        evaluationLock: false,
         _liveSpeech: '',
         spokenRaw: '',
         audioUrl: '',
@@ -3517,6 +3520,9 @@
 
       state.recording.isRecording = true;
       state.recording.seconds = 0;
+      state.recording.stopRequested = false;
+      state.recording.evaluationLock = false;
+      clearTimeout(state.recording.finalizingTimer);
       state.recording._liveSpeech = '';
       state.recording.audioChunks = [];
 
@@ -3524,6 +3530,10 @@
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined') {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          if (state.recording.stopRequested) {
+            stream.getTracks().forEach(t => t.stop());
+            return;
+          }
           const recorder = new MediaRecorder(stream);
           recorder.ondataavailable = (e) => {
             if (e.data && e.data.size > 0) state.recording.audioChunks.push(e.data);
@@ -3565,6 +3575,13 @@
               showToast('Izin mikrofon ditolak browser. Aktifkan izin mic di address bar.', 'error');
             }
           };
+          recognition.onend = () => {
+            if (state.recording.isRecording && !state.recording.stopRequested) {
+              try { recognition.start(); } catch { }
+              return;
+            }
+            finishRecordingEvaluation();
+          };
           recognition.start();
           state.recording.recognition = recognition;
         } catch { }
@@ -3586,6 +3603,22 @@
     function stopRecording(cancelled = false) {
       state.recording.isRecording = false;
       clearInterval(state.recording.timerInterval);
+
+      if (cancelled) {
+        state.recording.stopRequested = true;
+        clearTimeout(state.recording.finalizingTimer);
+        if (state.recording.recognition) {
+          try { state.recording.recognition.stop(); } catch { }
+          state.recording.recognition = null;
+        }
+        if (state.recording.mediaRecorder && state.recording.mediaRecorder.state !== 'inactive') {
+          try { state.recording.mediaRecorder.stop(); } catch { }
+          state.recording.mediaRecorder = null;
+        }
+        return;
+      }
+
+      state.recording.stopRequested = true;
       if (state.recording.recognition) {
         try { state.recording.recognition.stop(); } catch { }
         state.recording.recognition = null;
@@ -3595,15 +3628,25 @@
         state.recording.mediaRecorder = null;
       }
 
-      if (cancelled) return;
+      render();
+      clearTimeout(state.recording.finalizingTimer);
+      state.recording.finalizingTimer = setTimeout(finishRecordingEvaluation, 900);
+    }
+
+    function finishRecordingEvaluation() {
+      if (!state.recording.stopRequested || state.recording.evaluationLock) return;
+      state.recording.evaluationLock = true;
+      clearTimeout(state.recording.finalizingTimer);
 
       const spoken = (state.recording._liveSpeech || '').trim();
       if (spoken.length > 0) {
         evaluateSpokenText(spoken, Math.max(1, state.recording.seconds));
-      } else {
-        showToast('Suara tidak terdeteksi. Pastikan mikrofon aktif dan ucapkan kalimat dengan jelas.', 'warning');
-        render();
+        return;
       }
+
+      state.recording.evaluationLock = false;
+      showToast('Suara tidak terdeteksi. Pastikan mikrofon aktif dan ucapkan kalimat dengan jelas.', 'warning');
+      render();
     }
 
     // Levenshtein distance untuk mengukur kemiripan pelafalan per kata secara akurat
@@ -3626,7 +3669,10 @@
 
     function evaluateSpokenText(spoken, durationSeconds = 5) {
       const topic = getCurrentTopic();
-      const targetWords = topic.prompt.split(/\s+/).filter(Boolean);
+      const targetText = state.customPromptMode
+        ? (state.customPromptText || '').trim()
+        : topic.prompt;
+      const targetWords = (targetText || topic.prompt).split(/\s+/).filter(Boolean);
       const spokenTokens = spoken.toLowerCase().replace(/[^a-z0-9'\s]/g, '').split(/\s+/).filter(Boolean);
 
       // Penilaian ketat per kata (1-to-1 matching + urutan + Levenshtein, tanpa skor bonus palsu)
