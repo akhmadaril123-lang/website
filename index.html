@@ -795,7 +795,7 @@
         score: 0,
         combo: 0,
         bestCombo: 0,
-        answered: null,
+        answers: [],
         completedIds: [],
         questions: []
       },
@@ -1843,6 +1843,14 @@
       ,'Flashcard Kosakata': 'Vocabulary Flashcards'
       ,'AI Roleplay Skenario': 'AI Roleplay Scenarios'
       ,'Lencana': 'Badges'
+      ,'Jawaban Benar': 'Correct'
+      ,'Jawaban Salah': 'Incorrect'
+      ,'Jawabanmu': 'Your answer'
+      ,'Jawaban yang benar': 'Correct answer'
+      ,'Pembahasan': 'Explanation'
+      ,'Hasil Jawaban': 'Answer Review'
+      ,'Sesi Kuis Selesai!': 'Quiz Complete!'
+      ,'Akurasi': 'Accuracy'
     };
 
     const REVERSE_UI_TRANSLATIONS = Object.fromEntries(
@@ -2823,7 +2831,7 @@
       state.quiz.currentIndex = 0;
       state.quiz.score = 0;
       state.quiz.combo = 0;
-      state.quiz.answered = null;
+      state.quiz.answers = [];
       loadQuizProgress();
       loadVocabProgress();
       loadRoleplayProgress();
@@ -4368,9 +4376,6 @@
       const masteredCount = qState.completedIds.length;
       const masteredPct = Math.round((masteredCount / totalAll) * 100);
       const isFinished = qState.currentIndex >= questions.length;
-      const quizContainer = document.getElementById('screen-container');
-      if (quizContainer && state.currentScreen === 'quiz' && qState.answered === null) quizContainer.scrollTop = 0;
-
       const tierTabs = [
         { id: 'Semua', label: 'Semua (100)' },
         { id: 'Pemula', label: 'Pemula (1-25)' },
@@ -4412,16 +4417,16 @@
         const currentTierIdx = QUIZ_TIERS.indexOf(qState.selectedTier);
         const nextTier = currentTierIdx >= 0 && currentTierIdx < QUIZ_TIERS.length - 1 ? QUIZ_TIERS[currentTierIdx + 1] : null;
         return `
-          <div class="screen-enter min-h-full p-5 flex flex-col justify-between">
+          <div class="screen-enter min-h-full p-5 space-y-4">
             ${tierBar}
-            <div class="my-auto py-8 flex flex-col items-center text-center">
+            <section class="py-6 flex flex-col items-center text-center bg-white rounded-3xl border border-slate-200/80 shadow-sm">
               <div class="w-20 h-20 rounded-3xl bg-amber-100 text-amber-600 flex items-center justify-center mb-4">
                 <svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h2 class="font-display text-2xl font-extrabold text-slate-900">Sesi Kuis Selesai!</h2>
-              <p class="text-xs text-slate-500 mt-1">Level ${escapeHtml(qState.selectedTier)} - Akurasi ${accuracy}% (${qState.score}/${questions.length} benar)</p>
+              <h2 class="font-display text-2xl font-extrabold text-slate-900">${t('Sesi Kuis Selesai!')}</h2>
+              <p class="text-xs text-slate-500 mt-1">Level ${escapeHtml(qState.selectedTier)} - ${t('Akurasi')} ${accuracy}% (${qState.score}/${questions.length} ${t('Jawaban Benar').toLowerCase()})</p>
               <div class="grid grid-cols-2 gap-2.5 w-full mt-5 mb-6">
                 <div class="bg-white rounded-2xl p-3 border border-slate-200">
                   <p class="text-[11px] text-slate-400 font-semibold">Total Dikuasai</p>
@@ -4432,20 +4437,42 @@
                   <p class="font-display text-lg font-extrabold text-mint-700">${qState.bestCombo}x</p>
                 </div>
               </div>
-              <div class="space-y-2.5 w-full">
-                ${nextTier ? `
-                  <button onclick="setQuizTier('${nextTier}')" class="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-md shadow-brand-600/20">
-                    Naik ke Level ${nextTier}
-                  </button>
-                ` : ''}
-                <div class="flex gap-3 w-full">
-                  <button onclick="resetQuiz()" class="flex-1 py-3.5 rounded-2xl border border-slate-200 bg-white font-bold text-sm text-slate-700">
-                    Ulangi & Acak Opsi
-                  </button>
-                  <button onclick="navigate('home')" class="flex-1 py-3.5 rounded-2xl ${nextTier ? 'bg-slate-800 text-white' : 'bg-brand-600 text-white'} font-bold text-sm">
-                    Ke Beranda
-                  </button>
-                </div>
+            </section>
+
+            <section class="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+              <h3 class="font-display text-sm font-extrabold text-slate-900">${t('Hasil Jawaban')}</h3>
+              <div class="space-y-2.5">
+                ${qState.answers.map((answer, index) => `
+                  <article class="p-3 rounded-2xl border ${answer.isCorrect ? 'border-mint-200 bg-mint-50/60' : 'border-rose-200 bg-rose-50/60'}">
+                    <div class="flex items-start justify-between gap-2">
+                      <p class="text-xs font-bold text-slate-800">${index + 1}. ${escapeHtml(answer.question)}</p>
+                      <span class="text-[10px] font-extrabold shrink-0 ${answer.isCorrect ? 'text-mint-700' : 'text-rose-700'}">
+                        ${answer.isCorrect ? t('Jawaban Benar') : t('Jawaban Salah')}
+                      </span>
+                    </div>
+                    <p class="text-[11px] text-slate-600 mt-2"><strong>${t('Jawabanmu')}:</strong> ${escapeHtml(answer.selectedAnswer)}</p>
+                    ${!answer.isCorrect ? `
+                      <p class="text-[11px] text-mint-800 mt-1"><strong>${t('Jawaban yang benar')}:</strong> ${escapeHtml(answer.correctAnswer)}</p>
+                      <p class="text-[11px] text-slate-600 mt-1"><strong>${t('Pembahasan')}:</strong> ${escapeHtml(answer.info)}</p>
+                    ` : ''}
+                  </article>
+                `).join('')}
+              </div>
+            </section>
+
+            <div class="space-y-2.5">
+              ${nextTier ? `
+                <button onclick="setQuizTier('${nextTier}')" class="w-full py-3.5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-md shadow-brand-600/20">
+                  Naik ke Level ${nextTier}
+                </button>
+              ` : ''}
+              <div class="flex gap-3 w-full">
+                <button onclick="resetQuiz()" class="flex-1 py-3.5 rounded-2xl border border-slate-200 bg-white font-bold text-sm text-slate-700">
+                  Ulangi & Acak Opsi
+                </button>
+                <button onclick="navigate('home')" class="flex-1 py-3.5 rounded-2xl ${nextTier ? 'bg-slate-800 text-white' : 'bg-brand-600 text-white'} font-bold text-sm">
+                  Ke Beranda
+                </button>
               </div>
             </div>
           </div>
@@ -4486,37 +4513,17 @@
               ${currentQ.options.map((opt, idx) => {
         let btnClass = 'border-slate-200 bg-slate-50/70 hover:bg-slate-100 text-slate-800';
         let badgeClass = 'bg-white border-slate-200 text-slate-600';
-        if (qState.answered !== null) {
-          if (idx === currentQ.answer) {
-            btnClass = 'border-mint-500 bg-mint-50 text-mint-800 font-bold';
-            badgeClass = 'bg-mint-600 border-mint-600 text-white';
-          } else if (idx === qState.answered) {
-            btnClass = 'border-rose-500 bg-rose-50 text-rose-700';
-            badgeClass = 'bg-rose-600 border-rose-600 text-white';
-          }
-        }
         return `
-                  <button onclick="answerQuiz(${idx})" ${qState.answered !== null ? 'disabled' : ''}
+                          <button onclick="answerQuiz(${idx}, ${currentQ.id})"
                     class="w-full p-3.5 rounded-2xl border text-left text-sm font-medium transition-all flex items-center justify-between gap-3 ${btnClass}">
                     <span class="flex items-center gap-2.5 min-w-0">
                       <span class="w-6 h-6 rounded-lg border text-xs font-extrabold flex items-center justify-center shrink-0 ${badgeClass}">${optionLetters[idx] || idx + 1}</span>
                       <span class="leading-snug">${escapeHtml(opt)}</span>
                     </span>
-                    ${qState.answered !== null && idx === currentQ.answer ? '<span class="text-xs font-bold shrink-0">Benar</span>' : ''}
-                    ${qState.answered !== null && idx === qState.answered && idx !== currentQ.answer ? '<span class="text-xs font-bold shrink-0">Salah</span>' : ''}
                   </button>
                 `;
       }).join('')}
             </div>
-
-            ${qState.answered !== null ? `
-              <div class="mt-4 p-3.5 rounded-2xl bg-brand-50 text-xs text-brand-800 leading-relaxed">
-                <strong>Catatan Coach:</strong> ${escapeHtml(currentQ.info)}
-              </div>
-              <button onclick="nextQuizQuestion()" class="w-full mt-4 py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm transition-all">
-                ${qState.currentIndex + 1 < questions.length ? 'Soal Berikutnya' : 'Lihat Hasil Kuis'}
-              </button>
-            ` : ''}
           </div>
         </div>
       `;
@@ -4528,7 +4535,7 @@
       state.quiz.currentIndex = 0;
       state.quiz.score = 0;
       state.quiz.combo = 0;
-      state.quiz.answered = null;
+      state.quiz.answers = [];
       render();
     }
 
@@ -4538,17 +4545,26 @@
       state.quiz.currentIndex = 0;
       state.quiz.score = 0;
       state.quiz.combo = 0;
-      state.quiz.answered = null;
+      state.quiz.answers = [];
       showToast(state.quiz.shuffleQuestions ? 'Urutan soal & opsi diacak.' : 'Urutan soal berjenjang 1-100 (opsi tetap acak).', 'info');
       render();
     }
 
-    function answerQuiz(idx) {
-      if (state.quiz.answered !== null) return;
+    function answerQuiz(idx, questionId) {
       const currentQ = state.quiz.questions[state.quiz.currentIndex];
-      if (!currentQ) return;
-      state.quiz.answered = idx;
-      if (idx === currentQ.answer) {
+      if (!currentQ || currentQ.id !== questionId || !Number.isInteger(idx) || idx < 0 || idx >= currentQ.options.length) return;
+
+      const isCorrect = idx === currentQ.answer;
+      state.quiz.answers.push({
+        id: currentQ.id,
+        question: currentQ.q,
+        selectedAnswer: currentQ.options[idx],
+        correctAnswer: currentQ.options[currentQ.answer],
+        info: currentQ.info,
+        isCorrect
+      });
+
+      if (isCorrect) {
         state.quiz.score += 1;
         state.quiz.combo += 1;
         if (state.quiz.combo > state.quiz.bestCombo) state.quiz.bestCombo = state.quiz.combo;
@@ -4561,13 +4577,8 @@
       } else {
         state.quiz.combo = 0;
       }
-      render();
-    }
-
-    function nextQuizQuestion() {
       state.quiz.currentIndex += 1;
-      state.quiz.answered = null;
-      render();
+      render(true);
     }
 
     function resetQuiz() {
@@ -4575,7 +4586,7 @@
       state.quiz.currentIndex = 0;
       state.quiz.score = 0;
       state.quiz.combo = 0;
-      state.quiz.answered = null;
+      state.quiz.answers = [];
       render();
     }
 
@@ -4710,7 +4721,7 @@
       state.quiz.currentIndex = 0;
       state.quiz.score = 0;
       state.quiz.combo = 0;
-      state.quiz.answered = null;
+      state.quiz.answers = [];
       try {
         await saveAuthenticatedProfile({ level: lvl });
         showToast(`Level diubah ke ${lvl}. Materi & kuis disesuaikan!`, 'success');
