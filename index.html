@@ -220,6 +220,30 @@
       box-shadow: 0 -12px 28px rgba(16, 35, 63, .08);
     }
 
+    @media (min-width: 768px) {
+      body {
+        padding: 1.5rem;
+      }
+
+      #app-shell {
+        width: 100%;
+        max-width: 1440px;
+        height: min(calc(100vh - 3rem), 960px);
+        border: 1px solid var(--speak-line);
+        border-radius: 1.5rem;
+      }
+
+      #device-status-bar {
+        display: none;
+      }
+
+      #screen-container > * {
+        width: 100%;
+        max-width: 1200px;
+        margin-inline: auto;
+      }
+    }
+
     .nav-btn {
       min-height: 44px;
       transition: color .2s ease, background-color .2s ease, transform .2s var(--speak-ease);
@@ -336,6 +360,7 @@
 
     <!-- Top Status Bar (Visual mobile feel on desktop) -->
     <div
+      id="device-status-bar"
       class="hidden sm:flex items-center justify-between px-6 pt-3 pb-1 text-[11px] font-semibold text-slate-400 select-none bg-white z-20">
       <span id="clock-display">19:00</span>
       <div class="w-20 h-4 bg-slate-900 rounded-full"></div>
