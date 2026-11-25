@@ -1827,17 +1827,43 @@
       ,'Hafalkan 3 kosakata Flashcard 3D': 'Master 3 Flashcard 3D words'
       ,'kata dihafal': 'words mastered'
       ,'MISI HARIAN': 'DAILY MISSIONS'
+      ,'Kuis Cepat': 'Quick Quiz'
+      ,'Cek arti, pelafalan fonetik, dan penjelasan': 'Check meaning, phonetic pronunciation, and explanation'
+      ,'Hari ini': 'Today'
+      ,'Menit': 'Minutes'
+      ,'menit': 'minutes'
+      ,'hari': 'days'
+      ,'Rata-rata WPM': 'Average WPM'
+      ,'Total XP': 'Total XP'
+      ,'Grafik 7 Sesi Terakhir': 'Last 7 Sessions Chart'
+      ,'Terbaik': 'Best'
+      ,'Belum ada riwayat rekaman. Mulai latihan speaking untuk melihat grafikmu.': 'No recording history yet. Start a speaking exercise to see your chart.'
+      ,'Peta Penguasaan': 'Skill Mastery'
+      ,'Kuis Progresif (100 Soal)': 'Progressive Quiz (100 Questions)'
+      ,'Flashcard Kosakata': 'Vocabulary Flashcards'
+      ,'AI Roleplay Skenario': 'AI Roleplay Scenarios'
+      ,'Lencana': 'Badges'
     };
 
     const REVERSE_UI_TRANSLATIONS = Object.fromEntries(
       Object.entries(UI_TRANSLATIONS).map(([id, en]) => [en, id])
     );
+    const UI_TRANSLATIONS_LONGEST_FIRST = Object.entries(UI_TRANSLATIONS)
+      .sort(([left], [right]) => right.length - left.length);
+    const REVERSE_UI_TRANSLATIONS_LONGEST_FIRST = Object.entries(REVERSE_UI_TRANSLATIONS)
+      .sort(([left], [right]) => right.length - left.length);
 
     function setLanguage(language) {
       state.language = language === 'en' ? 'en' : 'id';
       safeStorageSet('speakup_language', state.language);
       document.documentElement.lang = state.language;
       render(true);
+    }
+
+    function t(indonesianText) {
+      return state.language === 'en'
+        ? (UI_TRANSLATIONS[indonesianText] || indonesianText)
+        : indonesianText;
     }
 
     function applyLanguage() {
@@ -1856,8 +1882,8 @@
           while (walker.nextNode()) {
             const textNode = walker.currentNode;
             let value = textNode.textContent;
-            Object.entries(REVERSE_UI_TRANSLATIONS).forEach(([english, indonesian]) => {
-              if (english.length > 1) value = value.replaceAll(english, indonesian);
+            REVERSE_UI_TRANSLATIONS_LONGEST_FIRST.forEach(([english, indonesian]) => {
+              if (english.length > 1) value = value.split(english).join(indonesian);
             });
             textNode.textContent = value;
           }
@@ -1869,8 +1895,8 @@
           while (walker.nextNode()) {
             const textNode = walker.currentNode;
             let value = textNode.textContent;
-            Object.entries(UI_TRANSLATIONS).forEach(([indonesian, english]) => {
-              if (indonesian.length > 1) value = value.replaceAll(indonesian, english);
+            UI_TRANSLATIONS_LONGEST_FIRST.forEach(([indonesian, english]) => {
+              if (indonesian.length > 1) value = value.split(indonesian).join(english);
             });
             textNode.textContent = value;
           }
@@ -3349,10 +3375,10 @@
         ? Math.round(state.practiceHistory.reduce((acc, item) => acc + (Number(item.totalScore) || 0), 0) / state.practiceHistory.length)
         : 0;
       const weeklyGoalText = state.user.weeklyProgress >= 100
-        ? 'Target mingguan tercapai! Pertahankan kebiasaan bicaramu setiap hari.'
+        ? t('Target mingguan tercapai! Pertahankan kebiasaan bicaramu setiap hari.')
         : state.user.weeklyProgress === 0
-          ? 'Mulai sesi voice note pertamamu hari ini untuk membangun streak!'
-          : `Selesaikan ${Math.max(1, Math.ceil((100 - state.user.weeklyProgress) / 25))} sesi lagi untuk mencapai 100% minggu ini!`;
+          ? t('Mulai sesi voice note pertamamu hari ini untuk membangun streak!')
+          : t(`Selesaikan ${Math.max(1, Math.ceil((100 - state.user.weeklyProgress) / 25))} sesi lagi untuk mencapai 100% minggu ini!`);
 
       const rankInfo = getUserRankInfo();
       const missions = getDailyMissions();
@@ -3362,15 +3388,15 @@
           <!-- Header: Halo + Streak Badge + Dark Mode -->
           <header class="flex items-center justify-between pt-1">
             <div class="min-w-0 pr-2">
-              <p class="text-xs font-medium text-slate-500">Selamat datang kembali</p>
-              <h1 class="font-display text-2xl font-extrabold text-slate-900 truncate">Halo, ${escapeHtml(state.user.name)}</h1>
+              <p class="text-xs font-medium text-slate-500">${t('Selamat datang kembali')}</p>
+              <h1 class="font-display text-2xl font-extrabold text-slate-900 truncate">${t('Halo')}, ${escapeHtml(state.user.name)}</h1>
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
               <div class="px-3 py-2 rounded-2xl ${state.user.streak > 0 ? 'bg-amber-50 border-amber-200/80 text-amber-700' : 'bg-slate-100 border-slate-200 text-slate-600'} border flex items-center gap-1 shadow-sm">
                 <svg class="w-3.5 h-3.5 ${state.user.streak > 0 ? 'text-amber-600' : 'text-slate-400'}" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                <span class="text-[11px] font-extrabold">${state.user.streak} hari</span>
+                <span class="text-[11px] font-extrabold">${state.user.streak} ${t('hari')}</span>
               </div>
               <button onclick="toggleDarkMode()" title="${state.darkMode ? 'Mode Terang' : 'Mode Gelap'}" class="p-2 rounded-2xl bg-white border border-slate-200 text-slate-500 hover:text-brand-600 transition-colors">
                 ${state.darkMode
@@ -3413,13 +3439,13 @@
             <div class="relative z-10">
               <div class="flex items-center justify-between">
                 <span class="px-2.5 py-1 rounded-full bg-white/20 text-[11px] font-semibold backdrop-blur-sm">
-                  Sesi hari ini - ${escapeHtml(state.user.level)} (${state.selectedTopicIndex + 1}/${activeTopics.length})
+                  ${t('Sesi hari ini')} - ${t(escapeHtml(state.user.level))} (${state.selectedTopicIndex + 1}/${activeTopics.length})
                 </span>
-                <span class="text-xs text-brand-100 font-medium">2 menit</span>
+                <span class="text-xs text-brand-100 font-medium">2 ${t('menit')}</span>
               </div>
 
               <h2 class="font-display text-xl font-extrabold mt-3 mb-1">
-                ${escapeHtml(currentTopic.title)}
+                ${t(escapeHtml(currentTopic.title))}
               </h2>
               <p class="text-xs text-brand-100 line-clamp-2 mb-4">
                 "${escapeHtml(currentTopic.prompt)}"
@@ -3428,10 +3454,10 @@
               <div class="flex items-center gap-2.5">
                 <button onclick="navigate('practice')" class="px-6 py-2.5 rounded-2xl bg-white text-brand-700 hover:bg-brand-50 active:scale-95 font-bold text-sm shadow-sm transition-all flex items-center gap-2">
                   <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                  <span>Mulai</span>
+                  <span>${t('Mulai')}</span>
                 </button>
                 <button onclick="cycleTopic()" class="px-3.5 py-2.5 rounded-2xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold transition-all">
-                  Ganti Topik
+                  ${t('Ganti Topik')}
                 </button>
               </div>
             </div>
@@ -3441,15 +3467,15 @@
           <section class="grid grid-cols-3 gap-2.5">
             <div class="bg-white rounded-2xl p-3 border border-slate-200/80 text-center shadow-sm">
               <p class="font-display text-lg font-extrabold text-brand-600">${avgScore || '-'}</p>
-              <p class="text-[10px] font-semibold text-slate-500 mt-0.5">Rata-rata Skor</p>
+              <p class="text-[10px] font-semibold text-slate-500 mt-0.5">${t('Rata-rata Skor')}</p>
             </div>
             <div class="bg-white rounded-2xl p-3 border border-slate-200/80 text-center shadow-sm">
               <p class="font-display text-lg font-extrabold text-mint-600">${state.user.newWords}</p>
-              <p class="text-[10px] font-semibold text-slate-500 mt-0.5">Kata Baru</p>
+              <p class="text-[10px] font-semibold text-slate-500 mt-0.5">${t('Kata Baru')}</p>
             </div>
             <div class="bg-white rounded-2xl p-3 border border-slate-200/80 text-center shadow-sm">
               <p class="font-display text-lg font-extrabold text-amber-600">${state.practiceHistory.length}</p>
-              <p class="text-[10px] font-semibold text-slate-500 mt-0.5">Total Sesi</p>
+              <p class="text-[10px] font-semibold text-slate-500 mt-0.5">${t('Total Sesi')}</p>
             </div>
           </section>
 
@@ -3462,7 +3488,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </span>
-                <h3 class="text-sm font-bold text-slate-800">Tantangan mingguan</h3>
+                <h3 class="text-sm font-bold text-slate-800">${t('Tantangan mingguan')}</h3>
               </div>
               <span class="text-xs font-extrabold text-mint-600">${state.user.weeklyProgress}%</span>
             </div>
@@ -3477,8 +3503,8 @@
           <!-- Misi Harian -->
           <section class="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm space-y-2.5">
             <div class="flex items-center justify-between">
-              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Misi Harian</h3>
-              <span class="text-[11px] font-bold text-brand-600">${missions.filter(m => m.done).length}/${missions.length} Selesai</span>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">${t('Misi Harian')}</h3>
+              <span class="text-[11px] font-bold text-brand-600">${missions.filter(m => m.done).length}/${missions.length} ${t('Selesai')}</span>
             </div>
             ${missions.map(m => `
               <div onclick="navigate('${m.screen}')" class="cursor-pointer flex items-center justify-between p-2.5 rounded-2xl border ${m.done ? 'bg-mint-50/70 border-mint-200' : 'bg-slate-50/70 border-slate-200/70 hover:border-brand-300'} transition-all">
@@ -3499,8 +3525,8 @@
           <!-- Fitur Unggulan Studio -->
           <section class="space-y-3">
             <div class="flex items-center justify-between px-1">
-              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Studio Pintar</h3>
-              <button onclick="navigate('studio')" class="text-xs font-bold text-brand-600 hover:underline">Lihat Semua</button>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">${t('Studio Pintar')}</h3>
+              <button onclick="navigate('studio')" class="text-xs font-bold text-brand-600 hover:underline">${t('Lihat Semua')}</button>
             </div>
             <div class="grid grid-cols-2 gap-2.5">
               <button onclick="navigate('roleplay')" class="bg-white hover:bg-slate-50 p-3.5 rounded-3xl border border-slate-200/80 shadow-sm text-left transition-all">
@@ -3508,7 +3534,7 @@
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
                 </div>
                 <h4 class="font-display text-xs font-extrabold text-slate-900">AI Roleplay</h4>
-                <p class="text-[11px] text-slate-500 mt-0.5">5 skenario dialog nyata</p>
+                <p class="text-[11px] text-slate-500 mt-0.5">${t('5 skenario dialog nyata')}</p>
               </button>
 
               <button onclick="navigate('vocab')" class="bg-white hover:bg-slate-50 p-3.5 rounded-3xl border border-slate-200/80 shadow-sm text-left transition-all">
@@ -3516,7 +3542,7 @@
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
                 </div>
                 <h4 class="font-display text-xs font-extrabold text-slate-900">Flashcard 3D</h4>
-                <p class="text-[11px] text-slate-500 mt-0.5">${state.vocab.masteredIds.length}/${getAllVocabCards().length} kata hafal</p>
+                <p class="text-[11px] text-slate-500 mt-0.5">${state.vocab.masteredIds.length}/${getAllVocabCards().length} ${t('kata hafal')}</p>
               </button>
 
               <button onclick="navigate('shadowing')" class="bg-white hover:bg-slate-50 p-3.5 rounded-3xl border border-slate-200/80 shadow-sm text-left transition-all">
@@ -3539,7 +3565,7 @@
 
           <!-- Menu Cepat -->
           <section class="space-y-3">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">Menu Cepat</h3>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">${t('Menu Cepat')}</h3>
 
             <button onclick="navigate('quiz')" class="w-full bg-white hover:bg-slate-50 active:scale-[0.99] p-4 rounded-3xl border border-slate-200/80 shadow-sm flex items-center justify-between transition-all text-left">
               <div class="flex items-center gap-3.5">
@@ -3549,7 +3575,7 @@
                   </svg>
                 </div>
                 <div>
-                  <h4 class="font-display text-sm font-bold text-slate-900">Kuis cepat (${state.quiz.completedIds.length}/${QUIZ_BANK_100.length} Kuis)</h4>
+                  <h4 class="font-display text-sm font-bold text-slate-900">${t('Kuis Cepat')} (${state.quiz.completedIds.length}/${QUIZ_BANK_100.length} ${t('Kuis')})</h4>
                   <p class="text-xs text-slate-500 mt-0.5">4 level hingga Master - opsi jawaban acak</p>
                 </div>
               </div>
@@ -3566,8 +3592,8 @@
                   </svg>
                 </div>
                 <div>
-                  <h4 class="font-display text-sm font-bold text-slate-900">Terjemahan dan cara baca</h4>
-                  <p class="text-xs text-slate-500 mt-0.5">Cek arti, pelafalan fonetik, dan penjelasan</p>
+                  <h4 class="font-display text-sm font-bold text-slate-900">${t('Terjemahan dan cara baca')}</h4>
+                  <p class="text-xs text-slate-500 mt-0.5">${t('Cek arti, pelafalan fonetik, dan penjelasan')}</p>
                 </div>
               </div>
               <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -3578,7 +3604,7 @@
 
           ${recentHistory.length > 0 ? `
             <section class="space-y-2.5">
-              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">Riwayat Latihan Terakhir</h3>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">${t('Riwayat Latihan Terakhir')}</h3>
               <div class="space-y-2">
                 ${recentHistory.map(item => `
                   <div class="bg-white rounded-2xl p-3.5 border border-slate-200/80 flex items-center justify-between shadow-sm">
@@ -4984,22 +5010,22 @@
       const vocabCount = state.vocab.masteredIds.length;
       return [
         {
-          title: 'Selesaikan 1 sesi Voice Note',
-          progressText: sessionsCount >= 1 ? 'Tercapai!' : '0 / 1 sesi selesai',
+          title: t('Selesaikan 1 sesi Voice Note'),
+          progressText: sessionsCount >= 1 ? t('Tercapai!') : `0 / 1 ${t('sesi selesai')}`,
           done: sessionsCount >= 1,
           xp: 50,
           screen: 'practice'
         },
         {
-          title: 'Kuasai 5 soal di Kuis Cepat',
-          progressText: quizCount >= 5 ? 'Tercapai!' : `${quizCount} / 5 kuis dikuasai`,
+          title: t('Kuasai 5 soal di Kuis Cepat'),
+          progressText: quizCount >= 5 ? t('Tercapai!') : `${quizCount} / 5 ${t('kuis dikuasai')}`,
           done: quizCount >= 5,
           xp: 75,
           screen: 'quiz'
         },
         {
-          title: 'Hafalkan 3 kosakata Flashcard 3D',
-          progressText: vocabCount >= 3 ? 'Tercapai!' : `${vocabCount} / 3 kata dihafal`,
+          title: t('Hafalkan 3 kosakata Flashcard 3D'),
+          progressText: vocabCount >= 3 ? t('Tercapai!') : `${vocabCount} / 3 ${t('kata dihafal')}`,
           done: vocabCount >= 3,
           xp: 30,
           screen: 'vocab'
@@ -5555,7 +5581,7 @@
             <button onclick="navigate('studio')" class="p-2 -ml-2 rounded-xl text-slate-500 hover:bg-slate-200/60">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
             </button>
-            <h1 class="font-display text-lg font-extrabold text-slate-900">Analitik & Lencana</h1>
+            <h1 class="font-display text-lg font-extrabold text-slate-900">${t('Analitik')} & ${t('Lencana')}</h1>
             <span class="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-bold">${unlockedCount}/${badges.length}</span>
           </div>
 
@@ -5563,26 +5589,26 @@
           <div class="grid grid-cols-3 gap-2.5">
             <div class="bg-white rounded-2xl p-3 border border-slate-200 text-center">
               <p class="font-display text-lg font-extrabold text-brand-600">${avgScore}</p>
-              <p class="text-[10px] font-semibold text-slate-500">Rata-rata Skor</p>
+              <p class="text-[10px] font-semibold text-slate-500">${t('Rata-rata Skor')}</p>
             </div>
             <div class="bg-white rounded-2xl p-3 border border-slate-200 text-center">
               <p class="font-display text-lg font-extrabold text-mint-600">${avgWpm || '-'}</p>
-              <p class="text-[10px] font-semibold text-slate-500">Rata-rata WPM</p>
+              <p class="text-[10px] font-semibold text-slate-500">${t('Rata-rata WPM')}</p>
             </div>
             <div class="bg-white rounded-2xl p-3 border border-slate-200 text-center">
               <p class="font-display text-lg font-extrabold text-purple-600">${rank.xp}</p>
-              <p class="text-[10px] font-semibold text-slate-500">Total XP</p>
+              <p class="text-[10px] font-semibold text-slate-500">${t('Total XP')}</p>
             </div>
           </div>
 
           <!-- Grafik Batang Tren Skor -->
           <div class="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm space-y-3">
             <div class="flex items-center justify-between">
-              <h2 class="text-xs font-extrabold text-slate-800">Grafik 7 Sesi Terakhir</h2>
-              <span class="text-[11px] font-bold text-brand-600">Terbaik: ${bestScore}</span>
+              <h2 class="text-xs font-extrabold text-slate-800">${t('Grafik 7 Sesi Terakhir')}</h2>
+              <span class="text-[11px] font-bold text-brand-600">${t('Terbaik')}: ${bestScore}</span>
             </div>
             ${history.length === 0 ? `
-              <p class="text-xs text-slate-400 text-center py-6">Belum ada riwayat rekaman. Mulai latihan speaking untuk melihat grafikmu.</p>
+              <p class="text-xs text-slate-400 text-center py-6">${t('Belum ada riwayat rekaman. Mulai latihan speaking untuk melihat grafikmu.')}</p>
             ` : `
               <div class="flex items-end justify-between gap-2 h-32 pt-4 px-1">
                 ${history.map((item, i) => {
@@ -5602,11 +5628,11 @@
 
           <!-- Progres Penguasaan Skill -->
           <div class="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-sm space-y-3">
-            <h2 class="text-xs font-extrabold text-slate-800">Peta Penguasaan</h2>
+            <h2 class="text-xs font-extrabold text-slate-800">${t('Peta Penguasaan')}</h2>
             ${[
-              { label: 'Kuis Progresif (100 Soal)', pct: quizPct, val: `${state.quiz.completedIds.length}/100`, color: 'bg-brand-500' },
-              { label: 'Flashcard Kosakata', pct: Math.round((state.vocab.masteredIds.length / Math.max(1, getAllVocabCards().length)) * 100), val: `${state.vocab.masteredIds.length}/${getAllVocabCards().length}`, color: 'bg-mint-500' },
-              { label: 'AI Roleplay Skenario', pct: Math.round((state.roleplay.completedScenarios.length / ROLEPLAY_SCENARIOS.length) * 100), val: `${state.roleplay.completedScenarios.length}/${ROLEPLAY_SCENARIOS.length}`, color: 'bg-purple-500' }
+              { label: t('Kuis Progresif (100 Soal)'), pct: quizPct, val: `${state.quiz.completedIds.length}/100`, color: 'bg-brand-500' },
+              { label: t('Flashcard Kosakata'), pct: Math.round((state.vocab.masteredIds.length / Math.max(1, getAllVocabCards().length)) * 100), val: `${state.vocab.masteredIds.length}/${getAllVocabCards().length}`, color: 'bg-mint-500' },
+              { label: t('AI Roleplay Skenario'), pct: Math.round((state.roleplay.completedScenarios.length / ROLEPLAY_SCENARIOS.length) * 100), val: `${state.roleplay.completedScenarios.length}/${ROLEPLAY_SCENARIOS.length}`, color: 'bg-purple-500' }
             ].map(row => `
               <div>
                 <div class="flex justify-between text-[11px] font-bold mb-1">
