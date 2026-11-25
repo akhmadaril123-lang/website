@@ -722,6 +722,7 @@
       // State rekaman & hasil koreksi
       recording: {
         isRecording: false,
+        isStarting: false,
         seconds: 0,
         timerInterval: null,
         recognition: null,
@@ -730,9 +731,6 @@
         evaluationLock: false,
         _liveSpeech: '',
         spokenRaw: '',
-        audioUrl: '',
-        mediaRecorder: null,
-        audioChunks: [],
         transcriptWords: [],
         totalScore: 0,
         grammarScore: 0,
@@ -3509,14 +3507,37 @@
     }
 
     async function startRecording() {
+      if (state.recording.isStarting) return;
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognition) {
         showToast('Browser tidak mendukung pengenalan suara langsung. Gunakan Chrome/Edge atau mode contoh.', 'warning');
+        return;
       }
-      if (state.recording.audioUrl) {
-        try { URL.revokeObjectURL(state.recording.audioUrl); } catch { }
-        state.recording.audioUrl = '';
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast('Mikrofon tidak bisa diakses. Buka situs melalui HTTPS dan izinkan akses mikrofon di pengaturan browser.', 'error');
+        return;
       }
+
+      state.recording.isStarting = true;
+      let micStream;
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (error) {
+        state.recording.isStarting = false;
+        const errorName = error && error.name;
+        if (errorName === 'NotAllowedError' || errorName === 'PermissionDeniedError') {
+          showToast('Izin mikrofon belum diberikan. Ketuk Izinkan saat diminta, atau aktifkan Mikrofon di pengaturan situs browser.', 'error');
+        } else if (errorName === 'NotFoundError' || errorName === 'DevicesNotFoundError') {
+          showToast('Mikrofon tidak ditemukan. Periksa apakah mikrofon perangkat tersedia dan aktif.', 'error');
+        } else if (errorName === 'NotReadableError' || errorName === 'TrackStartError') {
+          showToast('Mikrofon sedang digunakan aplikasi lain atau tidak dapat dinyalakan. Tutup aplikasi lain yang memakai mikrofon lalu coba lagi.', 'error');
+        } else {
+          showToast('Mikrofon tidak bisa diakses. Periksa izin mikrofon browser dan pengaturan perangkat.', 'error');
+        }
+        return;
+      }
+      state.recording.isStarting = false;
+      micStream.getTracks().forEach(track => track.stop());
 
       state.recording.isRecording = true;
       state.recording.seconds = 0;
@@ -3524,28 +3545,6 @@
       state.recording.evaluationLock = false;
       clearTimeout(state.recording.finalizingTimer);
       state.recording._liveSpeech = '';
-      state.recording.audioChunks = [];
-
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined') {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          const recorder = new MediaRecorder(stream);
-          recorder.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) state.recording.audioChunks.push(e.data);
-          };
-          recorder.onstop = () => {
-            stream.getTracks().forEach(t => t.stop());
-            if (state.recording.audioChunks.length > 0) {
-              const blob = new Blob(state.recording.audioChunks, { type: 'audio/webm' });
-              state.recording.audioUrl = URL.createObjectURL(blob);
-            }
-          };
-          recorder.start();
-          state.recording.mediaRecorder = recorder;
-        } catch {
-          // Lanjutkan speech recognition meski audio playback tidak tersedia.
-        }
-      }
 
       if (SpeechRecognition) {
         try {
@@ -3565,8 +3564,21 @@
             }
           };
           recognition.onerror = (event) => {
-            if (event && event.error === 'not-allowed') {
-              showToast('Izin mikrofon ditolak browser. Aktifkan izin mic di address bar.', 'error');
+            const errorMessages = {
+              'not-allowed': 'Izin mikrofon ditolak. Izinkan mikrofon untuk situs ini di pengaturan browser.',
+              'service-not-allowed': 'Layanan pengenalan suara browser tidak diizinkan. Coba gunakan Chrome terbaru.',
+              'audio-capture': 'Mikrofon tidak tersedia atau sedang digunakan aplikasi lain.',
+              network: 'Pengenalan suara memerlukan koneksi internet. Periksa koneksi lalu coba lagi.',
+              'language-not-supported': 'Bahasa pengenalan suara tidak tersedia di browser ini.'
+            };
+            const message = event && errorMessages[event.error];
+            if (message) {
+              state.recording.isRecording = false;
+              state.recording.stopRequested = false;
+              state.recording.recognition = null;
+              clearInterval(state.recording.timerInterval);
+              showToast(message, 'error');
+              render();
             }
           };
           recognition.onend = () => {
@@ -3578,7 +3590,16 @@
           };
           recognition.start();
           state.recording.recognition = recognition;
-        } catch { }
+        } catch (error) {
+          state.recording.isRecording = false;
+          state.recording.stopRequested = false;
+          showToast(error && error.name === 'NotAllowedError'
+            ? 'Izin mikrofon ditolak. Izinkan mikrofon untuk situs ini di pengaturan browser.'
+            : 'Browser gagal memulai pengenalan suara. Coba muat ulang halaman atau gunakan Chrome terbaru.',
+          'error');
+          render();
+          return;
+        }
       }
 
       state.recording.timerInterval = setInterval(() => {
@@ -3605,10 +3626,6 @@
           try { state.recording.recognition.stop(); } catch { }
           state.recording.recognition = null;
         }
-        if (state.recording.mediaRecorder && state.recording.mediaRecorder.state !== 'inactive') {
-          try { state.recording.mediaRecorder.stop(); } catch { }
-          state.recording.mediaRecorder = null;
-        }
         return;
       }
 
@@ -3616,10 +3633,6 @@
       if (state.recording.recognition) {
         try { state.recording.recognition.stop(); } catch { }
         state.recording.recognition = null;
-      }
-      if (state.recording.mediaRecorder && state.recording.mediaRecorder.state !== 'inactive') {
-        try { state.recording.mediaRecorder.stop(); } catch { }
-        state.recording.mediaRecorder = null;
       }
       render();
       clearTimeout(state.recording.finalizingTimer);
