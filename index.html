@@ -1775,6 +1775,58 @@
       'Mikrofon': 'Microphone',
       'Aktivitas': 'Activity',
       'Belum ada data': 'No data yet'
+      ,'Pelajaran favorit di sekolah': 'Favorite school subject'
+      ,'Rata-rata Skor': 'Average Score'
+      ,'Kata Baru': 'New Words'
+      ,'Total Sesi': 'Total Sessions'
+      ,'Tantangan mingguan': 'Weekly Challenge'
+      ,'Misi Harian': 'Daily Missions'
+      ,'Selesai': 'Completed'
+      ,'Studio Pintar': 'Smart Studio'
+      ,'Lihat Semua': 'View All'
+      ,'5 skenario dialog nyata': '5 real conversation scenarios'
+      ,'kata hafal': 'words mastered'
+      ,'Atur tempo 0.75x - 1.25x': 'Set speed 0.75x - 1.25x'
+      ,'Analitik & Lencana': 'Analytics & Badges'
+      ,'Grafik skor & 8 badge': 'Score chart & 8 badges'
+      ,'Menu Cepat': 'Quick Menu'
+      ,'Terjemahan dan cara baca': 'Translation and pronunciation'
+      ,'Cek arti, pelafalan fonetik, dan penjelasan': 'Check meanings, phonetics, and explanations'
+      ,'Riwayat Latihan Terakhir': 'Recent Practice History'
+      ,'Sesi hari ini': 'Today\'s session'
+      ,'Ganti Topik': 'Change Topic'
+      ,'Minggu ini': 'This week'
+      ,'Mulai': 'Start'
+      ,'Rencana akhir pekan': 'Weekend plans'
+      ,'Belajar lewat HP': 'Learning with a phone'
+      ,'Lingkungan sekolah': 'School environment'
+      ,'Keluargaku di rumah': 'My family at home'
+      ,'Cita-citaku': 'My dream'
+      ,'Kebiasaan sehari-hari': 'Daily habits'
+      ,'Hobi dan aktivitas': 'Hobbies and activities'
+      ,'Liburan impian': 'Dream vacation'
+      ,'Makanan favorit': 'Favorite food'
+      ,'Teknologi di sekolah': 'Technology at school'
+      ,'Lingkungan sekitar': 'My surroundings'
+      ,'Persahabatan': 'Friendship'
+      ,'Memulai percakapan': 'Starting a conversation'
+      ,'Memperkenalkan diri': 'Introducing myself'
+      ,'Perkenalan di sekolah': 'School introduction'
+      ,'Selamat datang kembali': 'Welcome back'
+      ,'hari': 'days'
+      ,'Kamu sedang hebat': 'You are doing great'
+      ,'Lanjutkan sesi berikutnya': 'Continue to the next session'
+      ,'Target mingguan tercapai!': 'Weekly target achieved!'
+      ,'Pertahankan kebiasaan bicaramu setiap hari.': 'Keep practicing every day.'
+      ,'Mulai sesi voice note pertamamu hari ini untuk membangun streak!': 'Start your first voice note session today to build a streak!'
+      ,'Selesaikan 1 sesi Voice Note': 'Complete 1 Voice Note session'
+      ,'Tercapai!': 'Achieved!'
+      ,'sesi selesai': 'sessions completed'
+      ,'Kuasai 5 soal di Kuis Cepat': 'Master 5 Quick Quiz questions'
+      ,'kuis dikuasai': 'quiz questions mastered'
+      ,'Hafalkan 3 kosakata Flashcard 3D': 'Master 3 Flashcard 3D words'
+      ,'kata dihafal': 'words mastered'
+      ,'MISI HARIAN': 'DAILY MISSIONS'
     };
 
     const REVERSE_UI_TRANSLATIONS = Object.fromEntries(
@@ -1803,10 +1855,11 @@
           const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
           while (walker.nextNode()) {
             const textNode = walker.currentNode;
-            const value = textNode.textContent.trim();
-            if (REVERSE_UI_TRANSLATIONS[value]) {
-              textNode.textContent = textNode.textContent.replace(value, REVERSE_UI_TRANSLATIONS[value]);
-            }
+            let value = textNode.textContent;
+            Object.entries(REVERSE_UI_TRANSLATIONS).forEach(([english, indonesian]) => {
+              if (english.length > 1) value = value.replaceAll(english, indonesian);
+            });
+            textNode.textContent = value;
           }
         }
       } else {
@@ -1815,10 +1868,11 @@
           const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
           while (walker.nextNode()) {
             const textNode = walker.currentNode;
-            const value = textNode.textContent.trim();
-            if (UI_TRANSLATIONS[value]) {
-              textNode.textContent = textNode.textContent.replace(value, UI_TRANSLATIONS[value]);
-            }
+            let value = textNode.textContent;
+            Object.entries(UI_TRANSLATIONS).forEach(([indonesian, english]) => {
+              if (indonesian.length > 1) value = value.replaceAll(indonesian, english);
+            });
+            textNode.textContent = value;
           }
         }
       }
