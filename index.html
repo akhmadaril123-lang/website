@@ -1775,7 +1775,7 @@
       'Mikrofon': 'Microphone',
       'Aktivitas': 'Activity',
       'Belum ada data': 'No data yet'
-      ,'Pelajaran favorit di sekolah': 'Favorite school subject'
+      ,'Pelajaran favorit di sekolah': 'Favorite subject at school'
       ,'Rata-rata Skor': 'Average Score'
       ,'Kata Baru': 'New Words'
       ,'Total Sesi': 'Total Sessions'
@@ -1853,6 +1853,17 @@
     const REVERSE_UI_TRANSLATIONS_LONGEST_FIRST = Object.entries(REVERSE_UI_TRANSLATIONS)
       .sort(([left], [right]) => right.length - left.length);
 
+    function replaceWholePhrases(text, translations) {
+      let result = text;
+      translations.forEach(([source, target]) => {
+        if (source.length < 2) return;
+        const escapedSource = source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const pattern = new RegExp(`(^|[^A-Za-z0-9])(${escapedSource})(?=$|[^A-Za-z0-9])`, 'g');
+        result = result.replace(pattern, (_, prefix) => `${prefix}${target}`);
+      });
+      return result;
+    }
+
     function setLanguage(language) {
       state.language = language === 'en' ? 'en' : 'id';
       safeStorageSet('speakup_language', state.language);
@@ -1881,11 +1892,7 @@
           const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
           while (walker.nextNode()) {
             const textNode = walker.currentNode;
-            let value = textNode.textContent;
-            REVERSE_UI_TRANSLATIONS_LONGEST_FIRST.forEach(([english, indonesian]) => {
-              if (english.length > 1) value = value.split(english).join(indonesian);
-            });
-            textNode.textContent = value;
+            textNode.textContent = replaceWholePhrases(textNode.textContent, REVERSE_UI_TRANSLATIONS_LONGEST_FIRST);
           }
         }
       } else {
@@ -1894,11 +1901,7 @@
           const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
           while (walker.nextNode()) {
             const textNode = walker.currentNode;
-            let value = textNode.textContent;
-            UI_TRANSLATIONS_LONGEST_FIRST.forEach(([indonesian, english]) => {
-              if (indonesian.length > 1) value = value.split(indonesian).join(english);
-            });
-            textNode.textContent = value;
+            textNode.textContent = replaceWholePhrases(textNode.textContent, UI_TRANSLATIONS_LONGEST_FIRST);
           }
         }
       }
